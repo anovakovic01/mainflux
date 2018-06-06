@@ -25,10 +25,15 @@ func Connect(hosts []string, keyspace string) (*gocql.Session, error) {
 	cluster.Keyspace = keyspace
 	cluster.Consistency = gocql.Quorum
 
-	return cluster.CreateSession()
-}
+	session, err := cluster.CreateSession()
+	if err != nil {
+		return nil, err
+	}
 
-// Initialize creates table used by the writer service.
-func Initialize(session *gocql.Session) error {
-	return session.Query(table).Exec()
+	err = session.Query(table).Exec()
+	if err != nil {
+		return nil, err
+	}
+
+	return session, nil
 }

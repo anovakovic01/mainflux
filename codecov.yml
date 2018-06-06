@@ -1,0 +1,4 @@
+ignore:
+  - "**/logging.go"
+  - "**/metrics.go
+  - "writers/**/api.go"
