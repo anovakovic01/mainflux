@@ -7,6 +7,7 @@ import (
 	"github.com/mainflux/mainflux"
 	"github.com/mainflux/mainflux/writers/cassandra"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 const keyspace = "mainflux"
@@ -18,9 +19,7 @@ var (
 
 func TestSave(t *testing.T) {
 	session, err := cassandra.Connect([]string{addr}, keyspace)
-	if err != nil {
-		t.Fatalf("Failed to connect to Cassandra: %s", err)
-	}
+	require.Nil(t, err, fmt.Sprintf("failed to connect to Cassandra: %s", err))
 
 	repo := cassandra.New(session)
 
