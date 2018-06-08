@@ -28,8 +28,7 @@ func TestMain(m *testing.M) {
 	addr = fmt.Sprintf("%s:%s", addr, port)
 
 	err = pool.Retry(func() error {
-		err := createKeyspace([]string{addr})
-		if err != nil {
+		if err := createKeyspace([]string{addr}); err != nil {
 			return err
 		}
 

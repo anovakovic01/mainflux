@@ -62,10 +62,8 @@ order to run all Mainflux core services, as well as mentioned optional ones,
 execute following command:
 
 ```bash
-docker-compose -f docker/docker-compose.yml -f docker/addons/cassandra/docker-compose.yml up -d
+./docker/addons/cassandra/init.sh
 ```
-
-_Please note that order matters here. You need to start core services before additional ones, i. e. core services compose file needs to be the first param of the command. Since all services need to be in the same network and writer services are dependent of core ones, you need to start all of them using single command._
 
 ## Usage
 
