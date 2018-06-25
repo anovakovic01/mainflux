@@ -30,8 +30,7 @@ func Connect(hosts []string, keyspace string) (*gocql.Session, error) {
 		return nil, err
 	}
 
-	err = session.Query(table).Exec()
-	if err != nil {
+	if err := session.Query(table).Exec(); err != nil {
 		return nil, err
 	}
 
