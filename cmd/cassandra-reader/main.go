@@ -99,7 +99,7 @@ func connectToThings(url string, logger log.Logger) *grpc.ClientConn {
 }
 
 func newService(session *gocql.Session, logger log.Logger) readers.MessageRepository {
-	repo := cassandra.NewReader(session)
+	repo := cassandra.New(session)
 	repo = api.LoggingMiddleware(repo, logger)
 	repo = api.MetricsMiddleware(
 		repo,
@@ -123,5 +123,5 @@ func newService(session *gocql.Session, logger log.Logger) readers.MessageReposi
 func startHTTPServer(repo readers.MessageRepository, tc mainflux.ThingsServiceClient, port string, errs chan error, logger log.Logger) {
 	p := fmt.Sprintf(":%s", port)
 	logger.Info(fmt.Sprintf("Cassandra writer service started, exposed port %s", port))
-	errs <- http.ListenAndServe(p, api.MakeHandler(repo, tc))
+	errs <- http.ListenAndServe(p, api.MakeHandler(repo, tc, "cassandra-reader"))
 }

@@ -16,7 +16,7 @@ const table = `CREATE TABLE IF NOT EXISTS messages (
     	value_sum double,
     	time double,
     	update_time double,
-    	link text,
+    	link text
     )`
 
 // Connect establishes connection to the Cassandra cluster.

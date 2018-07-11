@@ -12,16 +12,16 @@ type cassandraRepository struct {
 	session *gocql.Session
 }
 
-// NewReader instantiates Cassandra message repository.
-func NewReader(session *gocql.Session) readers.MessageRepository {
+// New instantiates Cassandra message repository.
+func New(session *gocql.Session) readers.MessageRepository {
 	return cassandraRepository{session: session}
 }
 
 func (cr cassandraRepository) ReadAll(chanID, offset, limit uint64) []mainflux.Message {
 	cql := `SELECT channel, publisher, protocol, name, unit,
 			value, string_value, bool_value, data_value, value_sum, time,
-			update_time, link FROM messages WHERE channel = ?
-			LIMIT ? ORDER BY id ASC`
+			update_time, link FROM messages WHERE channel = ? LIMIT ?
+			ALLOW FILTERING`
 
 	iter := cr.session.Query(cql, chanID, offset+limit).Iter()
 	scanner := iter.Scanner()

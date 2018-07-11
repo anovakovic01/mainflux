@@ -8,10 +8,5 @@ func Connect(hosts []string, keyspace string) (*gocql.Session, error) {
 	cluster.Keyspace = keyspace
 	cluster.Consistency = gocql.Quorum
 
-	session, err := cluster.CreateSession()
-	if err != nil {
-		return nil, err
-	}
-
-	return session, nil
+	return cluster.CreateSession()
 }

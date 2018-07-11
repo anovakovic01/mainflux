@@ -11,7 +11,7 @@ type listMessagesReq struct {
 }
 
 func (req listMessagesReq) validate() error {
-	if req.offset < 0 || req.limit < 1 {
+	if req.limit < 1 {
 		return errInvalidRequest
 	}
 

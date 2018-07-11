@@ -12,6 +12,7 @@ import (
 	"github.com/go-zoo/bone"
 	"github.com/mainflux/mainflux"
 	"github.com/mainflux/mainflux/readers"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -29,7 +30,7 @@ var (
 )
 
 // MakeHandler returns a HTTP handler for API endpoints.
-func MakeHandler(svc readers.MessageRepository, tc mainflux.ThingsServiceClient) http.Handler {
+func MakeHandler(svc readers.MessageRepository, tc mainflux.ThingsServiceClient, svcName string) http.Handler {
 	auth = tc
 
 	opts := []kithttp.ServerOption{
@@ -44,6 +45,9 @@ func MakeHandler(svc readers.MessageRepository, tc mainflux.ThingsServiceClient)
 		opts...,
 	))
 
+	mux.GetFunc("/version", mainflux.Version(svcName))
+	mux.Handle("/metrics", promhttp.Handler())
+
 	return mux
 }
 
@@ -57,8 +61,15 @@ func decodeList(_ context.Context, r *http.Request) (interface{}, error) {
 		return nil, err
 	}
 
-	offset := getQuery(r, "offset", defOffset)
-	limit := getQuery(r, "limit", defLimit)
+	offset, err := getQuery(r, "offset")
+	if err != nil {
+		return nil, err
+	}
+
+	limit, err := getQuery(r, "limit")
+	if err != nil {
+		return nil, err
+	}
 
 	req := listMessagesReq{
 		chanID: chanID,
@@ -94,8 +105,6 @@ func encodeError(_ context.Context, err error, w http.ResponseWriter) {
 		w.WriteHeader(http.StatusBadRequest)
 	case errUnauthorizedAccess:
 		w.WriteHeader(http.StatusForbidden)
-	case readers.ErrNotFound:
-		w.WriteHeader(http.StatusNotFound)
 	default:
 		w.WriteHeader(http.StatusInternalServerError)
 	}
@@ -122,16 +131,16 @@ func authorize(r *http.Request, chanID uint64) error {
 	return nil
 }
 
-func getQuery(req *http.Request, name string, fallback uint64) uint64 {
+func getQuery(req *http.Request, name string) (uint64, error) {
 	vals := bone.GetQuery(req, name)
-	if len(vals) == 0 {
-		return fallback
+	if len(vals) != 1 {
+		return 0, errInvalidRequest
 	}
 
 	val, err := strconv.ParseUint(vals[0], 10, 64)
 	if err != nil {
-		return fallback
+		return 0, errInvalidRequest
 	}
 
-	return uint64(val)
+	return uint64(val), nil
 }
