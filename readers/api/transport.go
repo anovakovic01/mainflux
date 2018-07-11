@@ -61,12 +61,12 @@ func decodeList(_ context.Context, r *http.Request) (interface{}, error) {
 		return nil, err
 	}
 
-	offset, err := getQuery(r, "offset")
+	offset, err := getQuery(r, "offset", defOffset)
 	if err != nil {
 		return nil, err
 	}
 
-	limit, err := getQuery(r, "limit")
+	limit, err := getQuery(r, "limit", defLimit)
 	if err != nil {
 		return nil, err
 	}
@@ -131,9 +131,13 @@ func authorize(r *http.Request, chanID uint64) error {
 	return nil
 }
 
-func getQuery(req *http.Request, name string) (uint64, error) {
+func getQuery(req *http.Request, name string, fallback uint64) (uint64, error) {
 	vals := bone.GetQuery(req, name)
-	if len(vals) != 1 {
+	if len(vals) == 0 {
+		return fallback, nil
+	}
+
+	if len(vals) > 1 {
 		return 0, errInvalidRequest
 	}
 
