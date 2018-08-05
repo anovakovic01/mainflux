@@ -23,6 +23,9 @@ func NewMessageRepository(messages map[uint64][]mainflux.Message) readers.Messag
 }
 
 func (repo *messageRepositoryMock) ReadAll(chanID, offset, limit uint64) []mainflux.Message {
+	repo.mutex.Lock()
+	defer repo.mutex.Unlock()
+
 	end := offset + limit
 
 	numOfMessages := uint64(len(repo.messages[chanID]))
@@ -38,7 +41,5 @@ func (repo *messageRepositoryMock) ReadAll(chanID, offset, limit uint64) []mainf
 		end = numOfMessages
 	}
 
-	repo.mutex.Lock()
-	defer repo.mutex.Unlock()
 	return repo.messages[chanID][offset:end]
 }

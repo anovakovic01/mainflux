@@ -57,12 +57,12 @@ MF_NATS_URL=[NATS instance URL] MF_CASSANDRA_WRITER_PORT=[Service HTTP port] MF_
 ### Using docker-compose
 
 This service can be deployed using docker containers. Docker compose file is
-available in `<project_root>/docker/addons/cassandra/docker-compose.yml`. In
-order to run all Mainflux core services, as well as mentioned optional ones,
+available in `<project_root>/docker/addons/cassandra-writer/docker-compose.yml`.
+In order to run all Mainflux core services, as well as mentioned optional ones,
 execute following command:
 
 ```bash
-./docker/addons/cassandra/init.sh
+./docker/addons/cassandra-writer/init.sh
 ```
 
 ## Usage

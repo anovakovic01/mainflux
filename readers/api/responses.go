@@ -9,7 +9,7 @@ import (
 var _ mainflux.Response = (*listMessagesRes)(nil)
 
 type listMessagesRes struct {
-	messages []mainflux.Message
+	Messages []mainflux.Message `json:"messages"`
 }
 
 func (res listMessagesRes) Headers() map[string]string {

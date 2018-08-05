@@ -17,6 +17,6 @@ func listMessagesEndpoint(svc readers.MessageRepository) endpoint.Endpoint {
 
 		messages := svc.ReadAll(req.chanID, req.offset, req.limit)
 
-		return listMessagesRes{messages: messages}, nil
+		return listMessagesRes{Messages: messages}, nil
 	}
 }

@@ -17,9 +17,9 @@ import (
 const (
 	svcName              = "test-service"
 	token                = "1"
-	chanID        uint64 = 1
 	invalid              = "invalid"
 	numOfMessages        = 42
+	chanID        uint64 = 1
 )
 
 func newService() readers.MessageRepository {
