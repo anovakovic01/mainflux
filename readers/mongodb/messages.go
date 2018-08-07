@@ -5,6 +5,7 @@ import (
 
 	"github.com/mainflux/mainflux"
 	"github.com/mainflux/mainflux/readers"
+	"github.com/mongodb/mongo-go-driver/bson"
 	"github.com/mongodb/mongo-go-driver/mongo"
 	"github.com/mongodb/mongo-go-driver/mongo/findopt"
 )
@@ -24,7 +25,7 @@ func New(db *mongo.Database) readers.MessageRepository {
 
 func (repo mongoRepository) ReadAll(chanID, offset, limit uint64) []mainflux.Message {
 	col := repo.db.Collection(collection)
-	cursor, err := col.Find(context.Background(), nil, findopt.Limit(int64(limit)), findopt.Skip(int64(offset)))
+	cursor, err := col.Find(context.Background(), bson.NewDocument(bson.EC.Int64("channel", int64(chanID))), findopt.Limit(int64(limit)), findopt.Skip(int64(offset)))
 	if err != nil {
 		return []mainflux.Message{}
 	}
