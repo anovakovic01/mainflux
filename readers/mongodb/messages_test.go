@@ -35,7 +35,7 @@ var (
 	testLog = log.New(os.Stdout)
 )
 
-func TestSave(t *testing.T) {
+func TestReadAll(t *testing.T) {
 	client, err := mongo.Connect(context.Background(), addr, nil)
 	require.Nil(t, err, fmt.Sprintf("Creating new MongoDB client expected to succeed: %s.\n", err))
 
