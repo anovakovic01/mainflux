@@ -3,8 +3,7 @@
 # for Mainflux platform. Since these are optional, this file is dependent of docker-compose file
 # from <project_root>/docker. In order to run these optional service, execute command:
 # docker-compose -f docker/docker-compose.yml -f docker/addons/mongodb-reader/docker-compose.yml up
-# from project root. MongoDB default port (27017) is exposed, so you can use various tools for database
-# inspection and data visualization.
+# from project root. MongoDB service is defined in docker/addons/mongodb-writer/docker-compose.yml.
 ###
 
 version: "3"
