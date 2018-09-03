@@ -94,15 +94,17 @@ type thingsService struct {
 	users    mainflux.UsersServiceClient
 	things   ThingRepository
 	channels ChannelRepository
+	cache    ChannelCache
 	idp      IdentityProvider
 }
 
 // New instantiates the things service implementation.
-func New(users mainflux.UsersServiceClient, things ThingRepository, channels ChannelRepository, idp IdentityProvider) Service {
+func New(users mainflux.UsersServiceClient, things ThingRepository, channels ChannelRepository, cache ChannelCache, idp IdentityProvider) Service {
 	return &thingsService{
 		users:    users,
 		things:   things,
 		channels: channels,
+		cache:    cache,
 		idp:      idp,
 	}
 }
@@ -272,10 +274,17 @@ func (ts *thingsService) Disconnect(key string, chanID, thingID uint64) error {
 }
 
 func (ts *thingsService) CanAccess(chanID uint64, key string) (uint64, error) {
-	thingID, err := ts.channels.HasThing(chanID, key)
+	thingID, err := ts.cache.Connected(chanID, key)
+	if err == nil && thingID != 0 {
+		return thingID, nil
+	}
+
+	thingID, err = ts.channels.HasThing(chanID, key)
 	if err != nil {
 		return 0, ErrUnauthorizedAccess
 	}
+
+	ts.cache.Save(chanID, thingID, key)
 
 	return thingID, nil
 }

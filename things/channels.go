@@ -50,3 +50,12 @@ type ChannelRepository interface {
 	// thing's ID.
 	HasThing(uint64, string) (uint64, error)
 }
+
+// ChannelCache contains channel-thing connection caching interface.
+type ChannelCache interface {
+	// Saves channel thing connection.
+	Save(uint64, uint64, string) error
+
+	// Connected checks if thing is connected to channel.
+	Connected(uint64, string) (uint64, error)
+}

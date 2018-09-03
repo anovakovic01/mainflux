@@ -32,9 +32,10 @@ func newService(tokens map[string]string) things.Service {
 	users := mocks.NewUsersService(tokens)
 	thingsRepo := mocks.NewThingRepository()
 	channelsRepo := mocks.NewChannelRepository(thingsRepo)
+	cache := mocks.NewChannelCache()
 	idp := mocks.NewIdentityProvider()
 
-	return things.New(users, thingsRepo, channelsRepo, idp)
+	return things.New(users, thingsRepo, channelsRepo, cache, idp)
 }
 
 func TestAddThing(t *testing.T) {
