@@ -153,10 +153,11 @@ func newService(conn *grpc.ClientConn, db *sql.DB, client *redis.Client, logger 
 	users := usersapi.NewClient(conn)
 	thingsRepo := postgres.NewThingRepository(db, logger)
 	channelsRepo := postgres.NewChannelRepository(db, logger)
-	cache := rediscache.NewChannelCache(client)
+	chanCache := rediscache.NewChannelCache(client)
+	thingCache := rediscache.NewThingCache(client)
 	idp := uuid.New()
 
-	svc := things.New(users, thingsRepo, channelsRepo, cache, idp)
+	svc := things.New(users, thingsRepo, channelsRepo, chanCache, thingCache, idp)
 	svc = api.LoggingMiddleware(svc, logger)
 	svc = api.MetricsMiddleware(
 		svc,

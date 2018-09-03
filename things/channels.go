@@ -53,9 +53,15 @@ type ChannelRepository interface {
 
 // ChannelCache contains channel-thing connection caching interface.
 type ChannelCache interface {
-	// Saves channel thing connection.
-	Save(uint64, uint64, string) error
+	// Connect channel thing connection.
+	Connect(uint64, uint64) error
 
-	// Connected checks if thing is connected to channel.
-	Connected(uint64, string) (uint64, error)
+	// HasThing checks if thing is connected to channel.
+	HasThing(uint64, uint64) bool
+
+	// Disconnects thing from channel.
+	Disconnect(uint64, uint64) error
+
+	// Removes channel from cache.
+	Remove(uint64) error
 }

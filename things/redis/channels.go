@@ -8,40 +8,42 @@ import (
 	"github.com/mainflux/mainflux/things"
 )
 
+const chanPrefix = "channel"
+
 var _ things.ChannelCache = (*channelCache)(nil)
 
 type channelCache struct {
 	client *redis.Client
 }
 
-// NewChannelCache returns redis cache implementation.
+// NewChannelCache returns redis channel cache implementation.
 func NewChannelCache(client *redis.Client) things.ChannelCache {
 	return channelCache{client: client}
 }
 
-func (cc channelCache) Save(chanID, thingID uint64, thingKey string) error {
-	if err := cc.client.Set(fmt.Sprintf("%s", thingKey), thingID, 0).Err(); err != nil {
-		return err
-	}
-
-	return cc.client.SAdd(fmt.Sprintf("%d", chanID), thingKey).Err()
+func (cc channelCache) Connect(chanID, thingID uint64) error {
+	cid, tid := kv(chanID, thingID)
+	return cc.client.SAdd(cid, tid).Err()
 }
 
-func (cc channelCache) Connected(chanID uint64, thingKey string) (uint64, error) {
-	result, err := cc.client.SIsMember(fmt.Sprintf("%d", chanID), thingKey).Result()
-	if !result || err != nil {
-		return 0, things.ErrNotFound
-	}
+func (cc channelCache) HasThing(chanID, thingID uint64) bool {
+	cid, tid := kv(chanID, thingID)
+	return cc.client.SIsMember(cid, tid).Val()
+}
 
-	id, err := cc.client.Get(thingKey).Result()
-	if err != nil {
-		return 0, err
-	}
+func (cc channelCache) Disconnect(chanID, thingID uint64) error {
+	cid, tid := kv(chanID, thingID)
+	return cc.client.SRem(cid, tid).Err()
+}
 
-	thingID, err := strconv.ParseUint(id, 10, 64)
-	if err != nil {
-		return 0, err
-	}
+func (cc channelCache) Remove(chanID uint64) error {
+	cid, _ := kv(chanID, 0)
+	return cc.client.Del(cid).Err()
+}
 
-	return thingID, nil
+// Generates key-value pair
+func kv(chanID, thingID uint64) (string, string) {
+	cid := fmt.Sprintf("%s:%d", chanPrefix, chanID)
+	tid := strconv.FormatUint(thingID, 10)
+	return cid, tid
 }

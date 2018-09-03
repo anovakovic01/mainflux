@@ -155,35 +155,43 @@ func (crm *channelRepositoryMock) HasThing(chanID uint64, key string) (uint64, e
 
 type channelCacheMock struct {
 	mu       sync.Mutex
-	channels map[uint64]string
-	things   map[string]uint64
+	channels map[uint64]uint64
 }
 
 // NewChannelCache returns mock cache instance.
 func NewChannelCache() things.ChannelCache {
 	return &channelCacheMock{
-		channels: make(map[uint64]string),
-		things:   make(map[string]uint64),
+		channels: make(map[uint64]uint64),
 	}
 }
 
-func (ccm *channelCacheMock) Save(chanID, thingID uint64, thingKey string) error {
+func (ccm *channelCacheMock) Connect(chanID uint64, thingID uint64) error {
 	ccm.mu.Lock()
 	defer ccm.mu.Unlock()
 
-	ccm.channels[chanID] = thingKey
-	ccm.things[thingKey] = thingID
-
+	ccm.channels[chanID] = thingID
 	return nil
 }
 
-func (ccm *channelCacheMock) Connected(chanID uint64, thingKey string) (uint64, error) {
+func (ccm *channelCacheMock) HasThing(chanID uint64, thingID uint64) bool {
 	ccm.mu.Lock()
 	defer ccm.mu.Unlock()
 
-	if _, ok := ccm.channels[chanID]; !ok {
-		return 0, things.ErrUnauthorizedAccess
-	}
+	return ccm.channels[chanID] == thingID
+}
 
-	return ccm.things[thingKey], nil
+func (ccm *channelCacheMock) Disconnect(chanID uint64, thingID uint64) error {
+	ccm.mu.Lock()
+	defer ccm.mu.Unlock()
+
+	delete(ccm.channels, chanID)
+	return nil
+}
+
+func (ccm *channelCacheMock) Remove(chanID uint64) error {
+	ccm.mu.Lock()
+	defer ccm.mu.Unlock()
+
+	delete(ccm.channels, chanID)
+	return nil
 }
