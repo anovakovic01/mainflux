@@ -172,24 +172,16 @@ func (cr channelRepository) Disconnect(owner string, chanID, thingID uint64) err
 }
 
 func (cr channelRepository) HasThing(chanID uint64, key string) (uint64, error) {
-	var thingID uint64
-
-	q := `SELECT id FROM things WHERE key = $1`
-	if err := cr.db.QueryRow(q, key).Scan(&thingID); err != nil {
-		cr.log.Error(fmt.Sprintf("Failed to obtain thing's ID due to %s", err))
-		return 0, err
-	}
-
-	q = `SELECT EXISTS (SELECT 1 FROM connections WHERE channel_id = $1 AND thing_id = $2);`
-	exists := false
-	if err := cr.db.QueryRow(q, chanID, thingID).Scan(&exists); err != nil {
+	q := `SELECT con.thing_id
+		 FROM connections con
+		 INNER JOIN things th ON th.id = con.thing_id
+		 INNER JOIN channels ch ON ch.id = con.channel_id
+		 WHERE con.channel_id = $1 AND th.key = $2;`
+	var id uint64
+	if err := cr.db.QueryRow(q, chanID, key).Scan(&id); err != nil {
 		cr.log.Error(fmt.Sprintf("Failed to check thing existence due to %s", err))
 		return 0, err
 	}
 
-	if !exists {
-		return 0, things.ErrUnauthorizedAccess
-	}
-
-	return thingID, nil
+	return id, nil
 }
