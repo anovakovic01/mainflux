@@ -10,6 +10,7 @@ package postgres
 import (
 	"database/sql"
 	"fmt"
+	"time"
 
 	_ "github.com/lib/pq" // required for SQL access
 	migrate "github.com/rubenv/sql-migrate"
@@ -18,7 +19,7 @@ import (
 // Connect creates a connection to the PostgreSQL instance and applies any
 // unapplied database migrations. A non-nil error is returned to indicate
 // failure.
-func Connect(host, port, name, user, pass string, numOfConn int) (*sql.DB, error) {
+func Connect(host, port, name, user, pass string, idleConns, openConns, connLifetime int) (*sql.DB, error) {
 	url := fmt.Sprintf("host=%s port=%s user=%s dbname=%s password=%s sslmode=disable", host, port, user, name, pass)
 
 	db, err := sql.Open("postgres", url)
@@ -26,7 +27,9 @@ func Connect(host, port, name, user, pass string, numOfConn int) (*sql.DB, error
 		return nil, err
 	}
 
-	db.SetMaxIdleConns(numOfConn)
+	db.SetMaxIdleConns(idleConns)
+	db.SetMaxOpenConns(openConns)
+	db.SetConnMaxLifetime(time.Duration(connLifetime) * time.Second)
 
 	if err := migrateDB(db); err != nil {
 		return nil, err

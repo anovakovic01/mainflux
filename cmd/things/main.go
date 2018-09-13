@@ -34,46 +34,52 @@ import (
 )
 
 const (
-	defDBHost      = "localhost"
-	defDBPort      = "5432"
-	defDBUser      = "mainflux"
-	defDBPass      = "mainflux"
-	defDBName      = "things"
-	defDBNumOfConn = "150"
-	defCacheURL    = "localhost:6379"
-	defCachePass   = ""
-	defCacheDB     = "0"
-	defHTTPPort    = "8180"
-	defGRPCPort    = "8181"
-	defUsersURL    = "localhost:8181"
+	defDBHost            = "localhost"
+	defDBPort            = "5432"
+	defDBUser            = "mainflux"
+	defDBPass            = "mainflux"
+	defDBName            = "things"
+	defDBMaxIdleConns    = "150"
+	defDBMaxOpenConns    = "150"
+	defDBConnMaxLifetime = "0"
+	defCacheURL          = "localhost:6379"
+	defCachePass         = ""
+	defCacheDB           = "0"
+	defHTTPPort          = "8180"
+	defGRPCPort          = "8181"
+	defUsersURL          = "localhost:8181"
 
-	envDBHost      = "MF_THINGS_DB_HOST"
-	envDBPort      = "MF_THINGS_DB_PORT"
-	envDBUser      = "MF_THINGS_DB_USER"
-	envDBPass      = "MF_THINGS_DB_PASS"
-	envDBName      = "MF_THINGS_DB"
-	envDBNumOfConn = "MF_THINGS_DB_NUM_OF_CONN"
-	envCacheURL    = "MF_THINGS_CACHE_URL"
-	envCachePass   = "MF_THINGS_CACHE_PASS"
-	envCacheDB     = "MF_THINGS_CACHE_DB"
-	envHTTPPort    = "MF_THINGS_HTTP_PORT"
-	envGRPCPort    = "MF_THINGS_GRPC_PORT"
-	envUsersURL    = "MF_USERS_URL"
+	envDBHost            = "MF_THINGS_DB_HOST"
+	envDBPort            = "MF_THINGS_DB_PORT"
+	envDBUser            = "MF_THINGS_DB_USER"
+	envDBPass            = "MF_THINGS_DB_PASS"
+	envDBName            = "MF_THINGS_DB"
+	envDBMaxIdleConns    = "MF_THINGS_DB_MAX_IDLE_CONNS"
+	envDBMaxOpenConns    = "MF_THINGS_DB_MAX_OPEN_CONNS"
+	envDBConnMaxLifetime = "MF_THINGS_DB_CONN_MAX_LIFETIME"
+	envCacheURL          = "MF_THINGS_CACHE_URL"
+	envCachePass         = "MF_THINGS_CACHE_PASS"
+	envCacheDB           = "MF_THINGS_CACHE_DB"
+	envHTTPPort          = "MF_THINGS_HTTP_PORT"
+	envGRPCPort          = "MF_THINGS_GRPC_PORT"
+	envUsersURL          = "MF_USERS_URL"
 )
 
 type config struct {
-	DBHost      string
-	DBPort      string
-	DBUser      string
-	DBPass      string
-	DBName      string
-	DBNumOfConn int
-	CacheURL    string
-	CachePass   string
-	CacheDB     int
-	HTTPPort    string
-	GRPCPort    string
-	UsersURL    string
+	DBHost            string
+	DBPort            string
+	DBUser            string
+	DBPass            string
+	DBName            string
+	DBMaxIdleConns    int
+	DBMaxOpenConns    int
+	DBConnMaxLifetime int
+	CacheURL          string
+	CachePass         string
+	CacheDB           int
+	HTTPPort          string
+	GRPCPort          string
+	UsersURL          string
 }
 
 func main() {
@@ -106,30 +112,21 @@ func main() {
 }
 
 func loadConfig(logger log.Logger) config {
-	db, err := strconv.Atoi(mainflux.Env(envCacheDB, defCacheDB))
-	if err != nil {
-		logger.Error(fmt.Sprintf("Failed to connect to cache: %s", err))
-		os.Exit(1)
-	}
-	numOfConn, err := strconv.Atoi(mainflux.Env(envDBNumOfConn, defDBNumOfConn))
-	if err != nil {
-		logger.Error(fmt.Sprintf("Failed to read num of db connections: %s", err))
-		os.Exit(1)
-	}
-
 	return config{
-		DBHost:      mainflux.Env(envDBHost, defDBHost),
-		DBPort:      mainflux.Env(envDBPort, defDBPort),
-		DBUser:      mainflux.Env(envDBUser, defDBUser),
-		DBPass:      mainflux.Env(envDBPass, defDBPass),
-		DBName:      mainflux.Env(envDBName, defDBName),
-		DBNumOfConn: numOfConn,
-		CacheURL:    mainflux.Env(envCacheURL, defCacheURL),
-		CachePass:   mainflux.Env(envCachePass, defCachePass),
-		CacheDB:     db,
-		HTTPPort:    mainflux.Env(envHTTPPort, defHTTPPort),
-		GRPCPort:    mainflux.Env(envGRPCPort, defGRPCPort),
-		UsersURL:    mainflux.Env(envUsersURL, defUsersURL),
+		DBHost:            mainflux.Env(envDBHost, defDBHost),
+		DBPort:            mainflux.Env(envDBPort, defDBPort),
+		DBUser:            mainflux.Env(envDBUser, defDBUser),
+		DBPass:            mainflux.Env(envDBPass, defDBPass),
+		DBName:            mainflux.Env(envDBName, defDBName),
+		DBMaxIdleConns:    intEnv(envDBMaxIdleConns, defDBMaxIdleConns, logger),
+		DBMaxOpenConns:    intEnv(envDBMaxOpenConns, defDBMaxOpenConns, logger),
+		DBConnMaxLifetime: intEnv(envDBConnMaxLifetime, defDBConnMaxLifetime, logger),
+		CacheURL:          mainflux.Env(envCacheURL, defCacheURL),
+		CachePass:         mainflux.Env(envCachePass, defCachePass),
+		CacheDB:           intEnv(envCacheDB, defCacheDB, logger),
+		HTTPPort:          mainflux.Env(envHTTPPort, defHTTPPort),
+		GRPCPort:          mainflux.Env(envGRPCPort, defGRPCPort),
+		UsersURL:          mainflux.Env(envUsersURL, defUsersURL),
 	}
 }
 
@@ -142,7 +139,16 @@ func connectToCache(cacheURL, cachePass string, cacheDB int) *redis.Client {
 }
 
 func connectToDB(cfg config, logger log.Logger) *sql.DB {
-	db, err := postgres.Connect(cfg.DBHost, cfg.DBPort, cfg.DBName, cfg.DBUser, cfg.DBPass, cfg.DBNumOfConn)
+	db, err := postgres.Connect(
+		cfg.DBHost,
+		cfg.DBPort,
+		cfg.DBName,
+		cfg.DBUser,
+		cfg.DBPass,
+		cfg.DBMaxIdleConns,
+		cfg.DBMaxOpenConns,
+		cfg.DBConnMaxLifetime,
+	)
 	if err != nil {
 		logger.Error(fmt.Sprintf("Failed to connect to postgres: %s", err))
 		os.Exit(1)
@@ -204,4 +210,15 @@ func startGRPCServer(svc things.Service, port string, logger log.Logger, errs ch
 	mainflux.RegisterThingsServiceServer(server, grpcapi.NewServer(svc))
 	logger.Info(fmt.Sprintf("Things gRPC service started, exposed port %s", port))
 	errs <- server.Serve(listener)
+}
+
+func intEnv(key, fallback string, logger log.Logger) int {
+	strVal := mainflux.Env(key, fallback)
+	val, err := strconv.Atoi(strVal)
+	if err != nil {
+		logger.Error(fmt.Sprintf("Failed to connect to cache: %s", err))
+		os.Exit(1)
+	}
+
+	return val
 }
