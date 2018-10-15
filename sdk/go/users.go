@@ -8,19 +8,22 @@
 package sdk
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"net/http"
-	"strings"
 )
 
-// CreateUser - create user
-func (sdk *MfxSDK) CreateUser(user, pwd string) error {
-	msg := fmt.Sprintf(`{"email": "%s", "password": "%s"}`, user, pwd)
-	url := fmt.Sprintf("%s/users", sdk.url)
+func (sdk mfSDK) CreateUser(user User) error {
+	data, err := json.Marshal(user)
+	if err != nil {
+		return err
+	}
 
-	resp, err := sdk.httpClient.Post(url, contentTypeJSON, strings.NewReader(msg))
+	url := createURL(sdk.url, sdk.usersPrefix, "users")
+
+	resp, err := sdk.client.Post(url, string(CTJSON), bytes.NewReader(data))
 	if err != nil {
 		return err
 	}
@@ -32,16 +35,18 @@ func (sdk *MfxSDK) CreateUser(user, pwd string) error {
 	return nil
 }
 
-// CreateToken - create user token
-func (sdk *MfxSDK) CreateToken(user, pwd string) (string, error) {
-	msg := fmt.Sprintf(`{"email": "%s", "password": "%s"}`, user, pwd)
-	url := fmt.Sprintf("%s/tokens", sdk.url)
-
-	resp, err := sdk.httpClient.Post(url, contentTypeJSON, strings.NewReader(msg))
+func (sdk mfSDK) CreateToken(user User) (string, error) {
+	data, err := json.Marshal(user)
 	if err != nil {
 		return "", err
 	}
 
+	url := createURL(sdk.url, sdk.usersPrefix, "tokens")
+
+	resp, err := sdk.client.Post(url, string(CTJSON), bytes.NewReader(data))
+	if err != nil {
+		return "", err
+	}
 	defer resp.Body.Close()
 
 	body, err := ioutil.ReadAll(resp.Body)
@@ -57,5 +62,6 @@ func (sdk *MfxSDK) CreateToken(user, pwd string) (string, error) {
 	if err := json.Unmarshal(body, &t); err != nil {
 		return "", err
 	}
+
 	return t.Token, nil
 }

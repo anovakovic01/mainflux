@@ -8,27 +8,28 @@
 package sdk
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"net/http"
-	"strconv"
-	"strings"
-
-	"github.com/mainflux/mainflux/things"
 )
 
 const channelsEndpoint = "channels"
 
-// CreateChannel - creates new channel and generates UUID
-func (sdk *MfxSDK) CreateChannel(data, token string) (string, error) {
-	url := fmt.Sprintf("%s/%s", sdk.url, channelsEndpoint)
-	req, err := http.NewRequest(http.MethodPost, url, strings.NewReader(data))
+func (sdk *mfSDK) CreateChannel(channel Channel, token string) (string, error) {
+	data, err := json.Marshal(channel)
 	if err != nil {
 		return "", err
 	}
 
-	resp, err := sdk.sendRequest(req, token, contentTypeJSON)
+	url := createURL(sdk.url, sdk.thingsPrefix, channelsEndpoint)
+	req, err := http.NewRequest(http.MethodPost, url, bytes.NewReader(data))
+	if err != nil {
+		return "", err
+	}
+
+	resp, err := sdk.sendRequest(req, token, string(CTJSON))
 	if err != nil {
 		return "", err
 	}
@@ -40,20 +41,19 @@ func (sdk *MfxSDK) CreateChannel(data, token string) (string, error) {
 	return resp.Header.Get("Location"), nil
 }
 
-// Channels - gets all channels
-func (sdk *MfxSDK) Channels(token string) ([]things.Channel, error) {
-	url := fmt.Sprintf("%s/%s?offset=%s&limit=%s",
-		sdk.url, channelsEndpoint, strconv.Itoa(offset), strconv.Itoa(limit))
+func (sdk *mfSDK) Channels(token string, offset, limit uint64) ([]Channel, error) {
+	endpoint := fmt.Sprintf("%s?offset=%d&limit=%d", channelsEndpoint, offset, limit)
+	url := createURL(sdk.url, sdk.thingsPrefix, endpoint)
+
 	req, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
 		return nil, err
 	}
 
-	resp, err := sdk.sendRequest(req, token, contentTypeJSON)
+	resp, err := sdk.sendRequest(req, token, string(CTJSON))
 	if err != nil {
 		return nil, err
 	}
-
 	defer resp.Body.Close()
 
 	body, err := ioutil.ReadAll(resp.Body)
@@ -65,53 +65,61 @@ func (sdk *MfxSDK) Channels(token string) ([]things.Channel, error) {
 		return nil, fmt.Errorf("%d", resp.StatusCode)
 	}
 
-	l := listChannelsRes{}
+	var l listChannelsRes
 	if err := json.Unmarshal(body, &l); err != nil {
 		return nil, err
 	}
+
 	return l.Channels, nil
 }
 
-// Channel - gets channel by ID
-func (sdk *MfxSDK) Channel(id, token string) (things.Channel, error) {
-	url := fmt.Sprintf("%s/%s/%s", sdk.url, channelsEndpoint, id)
+func (sdk *mfSDK) Channel(id, token string) (Channel, error) {
+	endpoint := fmt.Sprintf("%s/%s", channelsEndpoint, id)
+	url := createURL(sdk.url, sdk.thingsPrefix, endpoint)
+
 	req, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
-		return things.Channel{}, err
+		return Channel{}, err
 	}
 
-	resp, err := sdk.sendRequest(req, token, contentTypeJSON)
+	resp, err := sdk.sendRequest(req, token, string(CTJSON))
 	if err != nil {
-		return things.Channel{}, err
+		return Channel{}, err
 	}
-
 	defer resp.Body.Close()
 
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		return things.Channel{}, err
+		return Channel{}, err
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return things.Channel{}, fmt.Errorf("%d", resp.StatusCode)
+		return Channel{}, fmt.Errorf("%d", resp.StatusCode)
 	}
 
-	c := things.Channel{}
+	var c Channel
 	if err := json.Unmarshal(body, &c); err != nil {
-		return things.Channel{}, err
+		return Channel{}, err
 	}
+
 	return c, nil
 }
 
-// UpdateChannel - update a channel
-func (sdk *MfxSDK) UpdateChannel(id, data, token string) error {
-	url := fmt.Sprintf("%s/%s/%s", sdk.url, channelsEndpoint, id)
-	req, err := http.NewRequest(http.MethodPut, url, strings.NewReader(data))
+func (sdk *mfSDK) UpdateChannel(channel Channel, token string) error {
+	data, err := json.Marshal(channel)
 	if err != nil {
 		return err
 	}
 
-	resp, err := sdk.sendRequest(req, token, contentTypeJSON)
+	endpoint := fmt.Sprintf("%s/%s", channelsEndpoint, channel.ID)
+	url := createURL(sdk.url, sdk.thingsPrefix, endpoint)
+
+	req, err := http.NewRequest(http.MethodPut, url, bytes.NewReader(data))
+	if err != nil {
+		return err
+	}
+
+	resp, err := sdk.sendRequest(req, token, string(CTJSON))
 	if err != nil {
 		return err
 	}
@@ -123,15 +131,16 @@ func (sdk *MfxSDK) UpdateChannel(id, data, token string) error {
 	return nil
 }
 
-// DeleteChannel - removes channel
-func (sdk *MfxSDK) DeleteChannel(id, token string) error {
-	url := fmt.Sprintf("%s/%s/%s", sdk.url, channelsEndpoint, id)
+func (sdk *mfSDK) DeleteChannel(id, token string) error {
+	endpoint := fmt.Sprintf("%s/%s", channelsEndpoint, id)
+	url := createURL(sdk.url, sdk.thingsPrefix, endpoint)
+
 	req, err := http.NewRequest(http.MethodDelete, url, nil)
 	if err != nil {
 		return err
 	}
 
-	resp, err := sdk.sendRequest(req, token, contentTypeJSON)
+	resp, err := sdk.sendRequest(req, token, string(CTJSON))
 	if err != nil {
 		return err
 	}
