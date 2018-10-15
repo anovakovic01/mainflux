@@ -17,10 +17,10 @@ import (
 
 const channelsEndpoint = "channels"
 
-func (sdk *mfSDK) CreateChannel(channel Channel, token string) (string, error) {
+func (sdk mfSDK) CreateChannel(channel Channel, token string) (string, error) {
 	data, err := json.Marshal(channel)
 	if err != nil {
-		return "", err
+		return "", ErrInvalidArgs
 	}
 
 	url := createURL(sdk.url, sdk.thingsPrefix, channelsEndpoint)
@@ -35,13 +35,20 @@ func (sdk *mfSDK) CreateChannel(channel Channel, token string) (string, error) {
 	}
 
 	if resp.StatusCode != http.StatusCreated {
-		return "", fmt.Errorf("%d", resp.StatusCode)
+		switch resp.StatusCode {
+		case http.StatusBadRequest:
+			return "", ErrInvalidArgs
+		case http.StatusForbidden:
+			return "", ErrUnauthorized
+		default:
+			return "", ErrFailedCreation
+		}
 	}
 
 	return resp.Header.Get("Location"), nil
 }
 
-func (sdk *mfSDK) Channels(token string, offset, limit uint64) ([]Channel, error) {
+func (sdk mfSDK) Channels(token string, offset, limit uint64) ([]Channel, error) {
 	endpoint := fmt.Sprintf("%s?offset=%d&limit=%d", channelsEndpoint, offset, limit)
 	url := createURL(sdk.url, sdk.thingsPrefix, endpoint)
 
@@ -62,7 +69,14 @@ func (sdk *mfSDK) Channels(token string, offset, limit uint64) ([]Channel, error
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("%d", resp.StatusCode)
+		switch resp.StatusCode {
+		case http.StatusBadRequest:
+			return nil, ErrInvalidArgs
+		case http.StatusForbidden:
+			return nil, ErrUnauthorized
+		default:
+			return nil, ErrFetchFailed
+		}
 	}
 
 	var l listChannelsRes
@@ -73,7 +87,7 @@ func (sdk *mfSDK) Channels(token string, offset, limit uint64) ([]Channel, error
 	return l.Channels, nil
 }
 
-func (sdk *mfSDK) Channel(id, token string) (Channel, error) {
+func (sdk mfSDK) Channel(id, token string) (Channel, error) {
 	endpoint := fmt.Sprintf("%s/%s", channelsEndpoint, id)
 	url := createURL(sdk.url, sdk.thingsPrefix, endpoint)
 
@@ -94,7 +108,14 @@ func (sdk *mfSDK) Channel(id, token string) (Channel, error) {
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return Channel{}, fmt.Errorf("%d", resp.StatusCode)
+		switch resp.StatusCode {
+		case http.StatusForbidden:
+			return Channel{}, ErrUnauthorized
+		case http.StatusNotFound:
+			return Channel{}, ErrNotFound
+		default:
+			return Channel{}, ErrFetchFailed
+		}
 	}
 
 	var c Channel
@@ -105,10 +126,10 @@ func (sdk *mfSDK) Channel(id, token string) (Channel, error) {
 	return c, nil
 }
 
-func (sdk *mfSDK) UpdateChannel(channel Channel, token string) error {
+func (sdk mfSDK) UpdateChannel(channel Channel, token string) error {
 	data, err := json.Marshal(channel)
 	if err != nil {
-		return err
+		return ErrInvalidArgs
 	}
 
 	endpoint := fmt.Sprintf("%s/%s", channelsEndpoint, channel.ID)
@@ -125,13 +146,22 @@ func (sdk *mfSDK) UpdateChannel(channel Channel, token string) error {
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("%d", resp.StatusCode)
+		switch resp.StatusCode {
+		case http.StatusBadRequest:
+			return ErrInvalidArgs
+		case http.StatusForbidden:
+			return ErrUnauthorized
+		case http.StatusNotFound:
+			return ErrNotFound
+		default:
+			return ErrFailedUpdate
+		}
 	}
 
 	return nil
 }
 
-func (sdk *mfSDK) DeleteChannel(id, token string) error {
+func (sdk mfSDK) DeleteChannel(id, token string) error {
 	endpoint := fmt.Sprintf("%s/%s", channelsEndpoint, id)
 	url := createURL(sdk.url, sdk.thingsPrefix, endpoint)
 
@@ -146,7 +176,16 @@ func (sdk *mfSDK) DeleteChannel(id, token string) error {
 	}
 
 	if resp.StatusCode != http.StatusNoContent {
-		return fmt.Errorf("%d", resp.StatusCode)
+		switch resp.StatusCode {
+		case http.StatusBadRequest:
+			return ErrInvalidArgs
+		case http.StatusForbidden:
+			return ErrUnauthorized
+		case http.StatusNotFound:
+			return ErrNotFound
+		default:
+			return ErrFailedUpdate
+		}
 	}
 
 	return nil

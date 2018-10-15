@@ -18,7 +18,7 @@ type version struct {
 	Value string `json:"version"`
 }
 
-func (sdk *mfSDK) Version() (string, error) {
+func (sdk mfSDK) Version() (string, error) {
 	url := fmt.Sprintf("%s/version", sdk.url)
 
 	resp, err := sdk.client.Get(url)

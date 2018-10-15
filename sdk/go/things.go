@@ -17,10 +17,10 @@ import (
 
 const thingsEndpoint = "things"
 
-func (sdk *mfSDK) CreateThing(thing Thing, token string) (string, error) {
+func (sdk mfSDK) CreateThing(thing Thing, token string) (string, error) {
 	data, err := json.Marshal(thing)
 	if err != nil {
-		return "", err
+		return "", ErrInvalidArgs
 	}
 
 	url := createURL(sdk.url, sdk.thingsPrefix, thingsEndpoint)
@@ -37,13 +37,22 @@ func (sdk *mfSDK) CreateThing(thing Thing, token string) (string, error) {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusCreated {
-		return "", fmt.Errorf("%d", resp.StatusCode)
+		switch resp.StatusCode {
+		case http.StatusBadRequest:
+			return "", ErrInvalidArgs
+		case http.StatusForbidden:
+			return "", ErrUnauthorized
+		case http.StatusConflict:
+			return "", ErrConflict
+		default:
+			return "", ErrFailedCreation
+		}
 	}
 
 	return resp.Header.Get("Location"), nil
 }
 
-func (sdk *mfSDK) Things(token string, offset, limit uint64) ([]Thing, error) {
+func (sdk mfSDK) Things(token string, offset, limit uint64) ([]Thing, error) {
 	endpoint := fmt.Sprintf("%s?offset=%d&limit=%d", thingsEndpoint, offset, limit)
 	url := createURL(sdk.url, sdk.thingsPrefix, endpoint)
 
@@ -64,7 +73,14 @@ func (sdk *mfSDK) Things(token string, offset, limit uint64) ([]Thing, error) {
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("%d", resp.StatusCode)
+		switch resp.StatusCode {
+		case http.StatusBadRequest:
+			return nil, ErrInvalidArgs
+		case http.StatusForbidden:
+			return nil, ErrUnauthorized
+		default:
+			return nil, ErrFetchFailed
+		}
 	}
 
 	var l listThingsRes
@@ -75,7 +91,7 @@ func (sdk *mfSDK) Things(token string, offset, limit uint64) ([]Thing, error) {
 	return l.Things, nil
 }
 
-func (sdk *mfSDK) Thing(id, token string) (Thing, error) {
+func (sdk mfSDK) Thing(id, token string) (Thing, error) {
 	endpoint := fmt.Sprintf("%s/%s", thingsEndpoint, id)
 	url := createURL(sdk.url, sdk.thingsPrefix, endpoint)
 
@@ -96,7 +112,14 @@ func (sdk *mfSDK) Thing(id, token string) (Thing, error) {
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return Thing{}, fmt.Errorf("%d", resp.StatusCode)
+		switch resp.StatusCode {
+		case http.StatusForbidden:
+			return Thing{}, ErrUnauthorized
+		case http.StatusNotFound:
+			return Thing{}, ErrNotFound
+		default:
+			return Thing{}, ErrFetchFailed
+		}
 	}
 
 	var t Thing
@@ -107,10 +130,10 @@ func (sdk *mfSDK) Thing(id, token string) (Thing, error) {
 	return t, nil
 }
 
-func (sdk *mfSDK) UpdateThing(thing Thing, token string) error {
+func (sdk mfSDK) UpdateThing(thing Thing, token string) error {
 	data, err := json.Marshal(thing)
 	if err != nil {
-		return err
+		return ErrInvalidArgs
 	}
 
 	endpoint := fmt.Sprintf("%s/%s", thingsEndpoint, thing.ID)
@@ -127,13 +150,22 @@ func (sdk *mfSDK) UpdateThing(thing Thing, token string) error {
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("%d", resp.StatusCode)
+		switch resp.StatusCode {
+		case http.StatusBadRequest:
+			return ErrInvalidArgs
+		case http.StatusForbidden:
+			return ErrUnauthorized
+		case http.StatusNotFound:
+			return ErrNotFound
+		default:
+			return ErrFailedUpdate
+		}
 	}
 
 	return nil
 }
 
-func (sdk *mfSDK) DeleteThing(id, token string) error {
+func (sdk mfSDK) DeleteThing(id, token string) error {
 	endpoint := fmt.Sprintf("%s/%s", thingsEndpoint, id)
 	url := createURL(sdk.url, sdk.thingsPrefix, endpoint)
 
@@ -148,13 +180,18 @@ func (sdk *mfSDK) DeleteThing(id, token string) error {
 	}
 
 	if resp.StatusCode != http.StatusNoContent {
-		return fmt.Errorf("%d", resp.StatusCode)
+		switch resp.StatusCode {
+		case http.StatusForbidden:
+			return ErrUnauthorized
+		default:
+			return ErrFailedRemoval
+		}
 	}
 
 	return nil
 }
 
-func (sdk *mfSDK) ConnectThing(thingID, chanID, token string) error {
+func (sdk mfSDK) ConnectThing(thingID, chanID, token string) error {
 	endpoint := fmt.Sprintf("%s/%s/%s/%s", channelsEndpoint, chanID, thingsEndpoint, thingID)
 	url := createURL(sdk.url, sdk.thingsPrefix, endpoint)
 
@@ -169,13 +206,20 @@ func (sdk *mfSDK) ConnectThing(thingID, chanID, token string) error {
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("%d", resp.StatusCode)
+		switch resp.StatusCode {
+		case http.StatusForbidden:
+			return ErrUnauthorized
+		case http.StatusNotFound:
+			return ErrNotFound
+		default:
+			return ErrFailedConnection
+		}
 	}
 
 	return nil
 }
 
-func (sdk *mfSDK) DisconnectThing(thingID, chanID, token string) error {
+func (sdk mfSDK) DisconnectThing(thingID, chanID, token string) error {
 	endpoint := fmt.Sprintf("%s/%s/%s/%s", channelsEndpoint, chanID, thingsEndpoint, thingID)
 	url := createURL(sdk.url, sdk.thingsPrefix, endpoint)
 
@@ -190,7 +234,14 @@ func (sdk *mfSDK) DisconnectThing(thingID, chanID, token string) error {
 	}
 
 	if resp.StatusCode != http.StatusNoContent {
-		return fmt.Errorf("%d", resp.StatusCode)
+		switch resp.StatusCode {
+		case http.StatusForbidden:
+			return ErrUnauthorized
+		case http.StatusNotFound:
+			return ErrNotFound
+		default:
+			return ErrFailedDisconnect
+		}
 	}
 
 	return nil

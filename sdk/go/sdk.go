@@ -9,6 +9,7 @@ package sdk
 
 import (
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"net/http"
 )
@@ -22,6 +23,43 @@ const (
 
 	// CTBinary represents binary content type.
 	CTBinary ContentType = "application/octet-stream"
+)
+
+var (
+	// ErrConflict indicates that create or update of entity failed because
+	// entity with same name already exists.
+	ErrConflict = errors.New("entity already exists")
+
+	// ErrFailedCreation indicates that entity creation failed.
+	ErrFailedCreation = errors.New("failed to create entity")
+
+	// ErrFailedUpdate indicates that entity update failed.
+	ErrFailedUpdate = errors.New("failed to update entity")
+
+	// ErrFailedRemoval indicates that entity removal failed.
+	ErrFailedRemoval = errors.New("failed to remove entity")
+
+	// ErrFailedConnection indicates that connecting thing to channel failed.
+	ErrFailedConnection = errors.New("failed to connect thing to channel")
+
+	// ErrFailedDisconnect indicates that disconnecting thing from a channel failed.
+	ErrFailedDisconnect = errors.New("failed to connect thing to channel")
+
+	// ErrInvalidArgs indicates that invalid argument was passed.
+	ErrInvalidArgs = errors.New("invalid argument passed")
+
+	// ErrFetchFailed indicates that fetching of entity data failed.
+	ErrFetchFailed = errors.New("failed to fetch entity")
+
+	// ErrUnauthorized indicates unauthorized access.
+	ErrUnauthorized = errors.New("unauthorized access")
+
+	// ErrNotFound indicates that entity doesn't exist.
+	ErrNotFound = errors.New("entity not found")
+
+	// ErrInvalidContentType indicates that nonexistent message content type
+	// was passed.
+	ErrInvalidContentType = errors.New("Unknown Content Type")
 )
 
 // ContentType represents all possible content types.

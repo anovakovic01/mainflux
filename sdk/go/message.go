@@ -8,13 +8,12 @@
 package sdk
 
 import (
-	"errors"
 	"fmt"
 	"net/http"
 	"strings"
 )
 
-func (sdk *mfSDK) SendMessage(chanID, msg, token string) error {
+func (sdk mfSDK) SendMessage(chanID, msg, token string) error {
 	endpoint := fmt.Sprintf("channels/%s/messages", chanID)
 	url := createURL(sdk.url, sdk.httpAdapterPrefix, endpoint)
 
@@ -29,7 +28,16 @@ func (sdk *mfSDK) SendMessage(chanID, msg, token string) error {
 	}
 
 	if resp.StatusCode != http.StatusAccepted {
-		return fmt.Errorf("%d", resp.StatusCode)
+		switch resp.StatusCode {
+		case http.StatusBadRequest:
+			return ErrInvalidArgs
+		case http.StatusForbidden:
+			return ErrUnauthorized
+		case http.StatusNotFound:
+			return ErrNotFound
+		default:
+			return ErrFailedUpdate
+		}
 	}
 
 	return nil
@@ -37,7 +45,7 @@ func (sdk *mfSDK) SendMessage(chanID, msg, token string) error {
 
 func (sdk *mfSDK) SetContentType(ct ContentType) error {
 	if ct != CTJSON && ct != CTJSONSenML && ct != CTBinary {
-		return errors.New("Unknown Content Type")
+		return ErrInvalidContentType
 	}
 
 	sdk.msgContentType = ct

@@ -10,7 +10,6 @@ package sdk
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
 	"io/ioutil"
 	"net/http"
 )
@@ -18,7 +17,7 @@ import (
 func (sdk mfSDK) CreateUser(user User) error {
 	data, err := json.Marshal(user)
 	if err != nil {
-		return err
+		return ErrInvalidArgs
 	}
 
 	url := createURL(sdk.url, sdk.usersPrefix, "users")
@@ -29,7 +28,16 @@ func (sdk mfSDK) CreateUser(user User) error {
 	}
 
 	if resp.StatusCode != http.StatusCreated {
-		return fmt.Errorf("%d", resp.StatusCode)
+		switch resp.StatusCode {
+		case http.StatusBadRequest:
+			return ErrInvalidArgs
+		case http.StatusForbidden:
+			return ErrUnauthorized
+		case http.StatusConflict:
+			return ErrConflict
+		default:
+			return ErrFailedCreation
+		}
 	}
 
 	return nil
@@ -38,7 +46,7 @@ func (sdk mfSDK) CreateUser(user User) error {
 func (sdk mfSDK) CreateToken(user User) (string, error) {
 	data, err := json.Marshal(user)
 	if err != nil {
-		return "", err
+		return "", ErrInvalidArgs
 	}
 
 	url := createURL(sdk.url, sdk.usersPrefix, "tokens")
@@ -55,7 +63,14 @@ func (sdk mfSDK) CreateToken(user User) (string, error) {
 	}
 
 	if resp.StatusCode != http.StatusCreated {
-		return "", fmt.Errorf("%d", resp.StatusCode)
+		switch resp.StatusCode {
+		case http.StatusBadRequest:
+			return "", ErrInvalidArgs
+		case http.StatusForbidden:
+			return "", ErrUnauthorized
+		default:
+			return "", ErrFailedCreation
+		}
 	}
 
 	var t tokenRes
