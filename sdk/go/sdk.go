@@ -75,16 +75,16 @@ type User struct {
 
 // Thing represents mainflux thing.
 type Thing struct {
-	ID       string `json:"id"`
+	ID       uint64 `json:"id,omitempty"`
 	Type     string `json:"type"`
 	Name     string `json:"name,omitempty"`
-	Key      string `json:"key"`
+	Key      string `json:"key,omitempty"`
 	Metadata string `json:"metadata,omitempty"`
 }
 
 // Channel represents mainflux channel.
 type Channel struct {
-	ID   string `json:"id"`
+	ID   uint64 `json:"id,omitempty"`
 	Name string `json:"name"`
 }
 
@@ -172,7 +172,7 @@ func NewSDK(conf Config) SDK {
 		client: &http.Client{
 			Transport: &http.Transport{
 				TLSClientConfig: &tls.Config{
-					InsecureSkipVerify: conf.TLSVerification,
+					InsecureSkipVerify: !conf.TLSVerification,
 				},
 			},
 		},
