@@ -73,10 +73,21 @@ func TestChannelUpdate(t *testing.T) {
 func TestSingleChannelRetrieval(t *testing.T) {
 	email := "channel-single-retrieval@example.com"
 	chanRepo := postgres.NewChannelRepository(db, testLog)
+	thingRepo := postgres.NewThingRepository(db, testLog)
 
-	c := things.Channel{Owner: email}
-	id, _ := chanRepo.Save(c)
-	c.ID = id
+	th := things.Thing{
+		Owner: email,
+		Key:   uuid.New().ID(),
+	}
+	th.ID, _ = thingRepo.Save(th)
+
+	c := things.Channel{
+		Owner:  email,
+		Things: []things.Thing{th},
+	}
+
+	c.ID, _ = chanRepo.Save(c)
+	chanRepo.Connect(email, c.ID, th.ID)
 
 	cases := map[string]struct {
 		owner string
