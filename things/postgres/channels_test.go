@@ -37,19 +37,36 @@ func TestChannelUpdate(t *testing.T) {
 	id, _ := chanRepo.Save(c)
 	c.ID = id
 
-	cases := map[string]struct {
+	cases := []struct {
+		desc    string
 		channel things.Channel
 		err     error
 	}{
-		"update existing channel":                            {channel: c, err: nil},
-		"update non-existing channel with existing user":     {channel: things.Channel{ID: wrongID, Owner: email}, err: things.ErrNotFound},
-		"update existing channel ID with non-existing user":  {channel: things.Channel{ID: c.ID, Owner: wrongValue}, err: things.ErrNotFound},
-		"update non-existing channel with non-existing user": {channel: things.Channel{ID: wrongID, Owner: wrongValue}, err: things.ErrNotFound},
+		{
+			desc:    "update existing channel",
+			channel: c,
+			err:     nil,
+		},
+		{
+			desc:    "update non-existing channel with existing user",
+			channel: things.Channel{ID: wrongID, Owner: email},
+			err:     things.ErrNotFound,
+		},
+		{
+			desc:    "update existing channel ID with non-existing user",
+			channel: things.Channel{ID: c.ID, Owner: wrongValue},
+			err:     things.ErrNotFound,
+		},
+		{
+			desc:    "update non-existing channel with non-existing user",
+			channel: things.Channel{ID: wrongID, Owner: wrongValue},
+			err:     things.ErrNotFound,
+		},
 	}
 
-	for desc, tc := range cases {
+	for _, tc := range cases {
 		err := chanRepo.Update(tc.channel)
-		assert.Equal(t, tc.err, err, fmt.Sprintf("%s: expected %s got %s\n", desc, tc.err, err))
+		assert.Equal(t, tc.err, err, fmt.Sprintf("%s: expected %s got %s\n", tc.desc, tc.err, err))
 	}
 }
 
@@ -66,9 +83,21 @@ func TestSingleChannelRetrieval(t *testing.T) {
 		ID    uint64
 		err   error
 	}{
-		"retrieve channel with existing user":                       {owner: c.Owner, ID: c.ID, err: nil},
-		"retrieve channel with existing user, non-existing channel": {owner: c.Owner, ID: wrongID, err: things.ErrNotFound},
-		"retrieve channel with non-existing owner":                  {owner: wrongValue, ID: c.ID, err: things.ErrNotFound},
+		"retrieve channel with existing user": {
+			owner: c.Owner,
+			ID:    c.ID,
+			err:   nil,
+		},
+		"retrieve channel with existing user, non-existing channel": {
+			owner: c.Owner,
+			ID:    wrongID,
+			err:   things.ErrNotFound,
+		},
+		"retrieve channel with non-existing owner": {
+			owner: wrongValue,
+			ID:    c.ID,
+			err:   things.ErrNotFound,
+		},
 	}
 
 	for desc, tc := range cases {
@@ -94,9 +123,24 @@ func TestMultiChannelRetrieval(t *testing.T) {
 		limit  uint64
 		size   uint64
 	}{
-		"retrieve all channels with existing owner":       {owner: email, offset: 0, limit: n, size: n},
-		"retrieve subset of channels with existing owner": {owner: email, offset: n / 2, limit: n, size: n / 2},
-		"retrieve channels with non-existing owner":       {owner: wrongValue, offset: n / 2, limit: n, size: 0},
+		"retrieve all channels with existing owner": {
+			owner:  email,
+			offset: 0,
+			limit:  n,
+			size:   n,
+		},
+		"retrieve subset of channels with existing owner": {
+			owner:  email,
+			offset: n / 2,
+			limit:  n,
+			size:   n / 2,
+		},
+		"retrieve channels with non-existing owner": {
+			owner:  wrongValue,
+			offset: n / 2,
+			limit:  n,
+			size:   0,
+		},
 	}
 
 	for desc, tc := range cases {
@@ -142,11 +186,41 @@ func TestConnect(t *testing.T) {
 		thingID uint64
 		err     error
 	}{
-		{desc: "connect existing user, channel and thing", owner: email, chanID: chanID, thingID: thingID, err: nil},
-		{desc: "connect connected channel and thing", owner: email, chanID: chanID, thingID: thingID, err: nil},
-		{desc: "connect with non-existing user", owner: wrongValue, chanID: chanID, thingID: thingID, err: things.ErrNotFound},
-		{desc: "connect non-existing channel", owner: email, chanID: wrongID, thingID: thingID, err: things.ErrNotFound},
-		{desc: "connect non-existing thing", owner: email, chanID: chanID, thingID: wrongID, err: things.ErrNotFound},
+		{
+			desc:    "connect existing user, channel and thing",
+			owner:   email,
+			chanID:  chanID,
+			thingID: thingID,
+			err:     nil,
+		},
+		{
+			desc:    "connect connected channel and thing",
+			owner:   email,
+			chanID:  chanID,
+			thingID: thingID,
+			err:     nil,
+		},
+		{
+			desc:    "connect with non-existing user",
+			owner:   wrongValue,
+			chanID:  chanID,
+			thingID: thingID,
+			err:     things.ErrNotFound,
+		},
+		{
+			desc:    "connect non-existing channel",
+			owner:   email,
+			chanID:  wrongID,
+			thingID: thingID,
+			err:     things.ErrNotFound,
+		},
+		{
+			desc:    "connect non-existing thing",
+			owner:   email,
+			chanID:  chanID,
+			thingID: wrongID,
+			err:     things.ErrNotFound,
+		},
 	}
 
 	for _, tc := range cases {
@@ -175,11 +249,41 @@ func TestDisconnect(t *testing.T) {
 		thingID uint64
 		err     error
 	}{
-		{desc: "disconnect connected thing", owner: email, chanID: chanID, thingID: thingID, err: nil},
-		{desc: "disconnect non-connected thing", owner: email, chanID: chanID, thingID: thingID, err: things.ErrNotFound},
-		{desc: "disconnect non-existing user", owner: wrongValue, chanID: chanID, thingID: thingID, err: things.ErrNotFound},
-		{desc: "disconnect non-existing channel", owner: email, chanID: wrongID, thingID: thingID, err: things.ErrNotFound},
-		{desc: "disconnect non-existing thing", owner: email, chanID: chanID, thingID: wrongID, err: things.ErrNotFound},
+		{
+			desc:    "disconnect connected thing",
+			owner:   email,
+			chanID:  chanID,
+			thingID: thingID,
+			err:     nil,
+		},
+		{
+			desc:    "disconnect non-connected thing",
+			owner:   email,
+			chanID:  chanID,
+			thingID: thingID,
+			err:     things.ErrNotFound,
+		},
+		{
+			desc:    "disconnect non-existing user",
+			owner:   wrongValue,
+			chanID:  chanID,
+			thingID: thingID,
+			err:     things.ErrNotFound,
+		},
+		{
+			desc:    "disconnect non-existing channel",
+			owner:   email,
+			chanID:  wrongID,
+			thingID: thingID,
+			err:     things.ErrNotFound,
+		},
+		{
+			desc:    "disconnect non-existing thing",
+			owner:   email,
+			chanID:  chanID,
+			thingID: wrongID,
+			err:     things.ErrNotFound,
+		},
 	}
 
 	for _, tc := range cases {
@@ -206,9 +310,21 @@ func TestHasThing(t *testing.T) {
 		key       string
 		hasAccess bool
 	}{
-		"access check for thing that has access": {chanID: chanID, key: thing.Key, hasAccess: true},
-		"access check for thing without access":  {chanID: chanID, key: wrongValue, hasAccess: false},
-		"access check for non-existing channel":  {chanID: wrongID, key: thing.Key, hasAccess: false},
+		"access check for thing that has access": {
+			chanID:    chanID,
+			key:       thing.Key,
+			hasAccess: true,
+		},
+		"access check for thing without access": {
+			chanID:    chanID,
+			key:       wrongValue,
+			hasAccess: false,
+		},
+		"access check for non-existing channel": {
+			chanID:    wrongID,
+			key:       thing.Key,
+			hasAccess: false,
+		},
 	}
 
 	for desc, tc := range cases {
