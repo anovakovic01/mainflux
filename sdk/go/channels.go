@@ -132,7 +132,7 @@ func (sdk mfSDK) UpdateChannel(channel Channel, token string) error {
 		return ErrInvalidArgs
 	}
 
-	endpoint := fmt.Sprintf("%s/%d", channelsEndpoint, channel.ID)
+	endpoint := fmt.Sprintf("%s/%s", channelsEndpoint, channel.ID)
 	url := createURL(sdk.url, sdk.thingsPrefix, endpoint)
 
 	req, err := http.NewRequest(http.MethodPut, url, bytes.NewReader(data))

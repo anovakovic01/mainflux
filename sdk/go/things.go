@@ -136,7 +136,7 @@ func (sdk mfSDK) UpdateThing(thing Thing, token string) error {
 		return ErrInvalidArgs
 	}
 
-	endpoint := fmt.Sprintf("%s/%d", thingsEndpoint, thing.ID)
+	endpoint := fmt.Sprintf("%s/%s", thingsEndpoint, thing.ID)
 	url := createURL(sdk.url, sdk.thingsPrefix, endpoint)
 
 	req, err := http.NewRequest(http.MethodPut, url, bytes.NewReader(data))
