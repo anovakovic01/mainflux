@@ -81,18 +81,18 @@ func TestMultiChannelRetrieval(t *testing.T) {
 	email := "channel-multi-retrieval@example.com"
 	chanRepo := postgres.NewChannelRepository(db, testLog)
 
-	n := 10
+	n := uint64(10)
 
-	for i := 0; i < n; i++ {
+	for i := uint64(0); i < n; i++ {
 		c := things.Channel{Owner: email}
 		chanRepo.Save(c)
 	}
 
 	cases := map[string]struct {
 		owner  string
-		offset int
-		limit  int
-		size   int
+		offset uint64
+		limit  uint64
+		size   uint64
 	}{
 		"retrieve all channels with existing owner":       {owner: email, offset: 0, limit: n, size: n},
 		"retrieve subset of channels with existing owner": {owner: email, offset: n / 2, limit: n, size: n / 2},
@@ -100,7 +100,8 @@ func TestMultiChannelRetrieval(t *testing.T) {
 	}
 
 	for desc, tc := range cases {
-		size := len(chanRepo.RetrieveAll(tc.owner, tc.offset, tc.limit))
+		result := chanRepo.RetrieveAll(tc.owner, tc.offset, tc.limit)
+		size := uint64(len(result))
 		assert.Equal(t, tc.size, size, fmt.Sprintf("%s: expected %d got %d\n", desc, tc.size, size))
 	}
 }

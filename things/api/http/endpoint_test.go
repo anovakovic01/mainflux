@@ -14,6 +14,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -276,25 +277,50 @@ func TestViewThing(t *testing.T) {
 	defer ts.Close()
 
 	sth, _ := svc.AddThing(token, thing)
-	data := toJSON(sth)
+	thres := thingRes{
+		ID:       strconv.FormatUint(sth.ID, 10),
+		Type:     sth.Type,
+		Name:     sth.Name,
+		Key:      sth.Key,
+		Metadata: sth.Metadata,
+	}
+	data := toJSON(thres)
 
 	cases := []struct {
 		desc   string
-		id     uint64
+		id     string
 		auth   string
 		status int
 		res    string
 	}{
-		{desc: "view existing thing", id: sth.ID, auth: token, status: http.StatusOK, res: data},
-		{desc: "view non-existent thing", id: wrongID, auth: token, status: http.StatusNotFound, res: ""},
-		{desc: "view thing by passing invalid token", id: sth.ID, auth: wrongValue, status: http.StatusForbidden, res: ""},
+		{
+			desc:   "view existing thing",
+			id:     strconv.FormatUint(sth.ID, 10),
+			auth:   token,
+			status: http.StatusOK,
+			res:    data,
+		},
+		{
+			desc:   "view non-existent thing",
+			id:     strconv.FormatUint(wrongID, 10),
+			auth:   token,
+			status: http.StatusNotFound,
+			res:    "",
+		},
+		{
+			desc:   "view thing by passing invalid token",
+			id:     strconv.FormatUint(sth.ID, 10),
+			auth:   wrongValue,
+			status: http.StatusForbidden,
+			res:    "",
+		},
 	}
 
 	for _, tc := range cases {
 		req := testRequest{
 			client: ts.Client(),
 			method: http.MethodGet,
-			url:    fmt.Sprintf("%s/things/%d", ts.URL, tc.id),
+			url:    fmt.Sprintf("%s/things/%s", ts.URL, tc.id),
 			token:  tc.auth,
 		}
 		res, err := req.make()
@@ -312,12 +338,17 @@ func TestListThings(t *testing.T) {
 	ts := newServer(svc)
 	defer ts.Close()
 
-	data := []things.Thing{}
+	data := []thingRes{}
 	for i := 0; i < 101; i++ {
 		sth, _ := svc.AddThing(token, thing)
-		// must be "nulled" due to the JSON serialization that ignores owner
-		sth.Owner = ""
-		data = append(data, sth)
+		thres := thingRes{
+			ID:       strconv.FormatUint(sth.ID, 10),
+			Type:     sth.Type,
+			Name:     sth.Name,
+			Key:      sth.Key,
+			Metadata: sth.Metadata,
+		}
+		data = append(data, thres)
 	}
 	thingURL := fmt.Sprintf("%s/things", ts.URL)
 	cases := []struct {
@@ -325,7 +356,7 @@ func TestListThings(t *testing.T) {
 		auth   string
 		status int
 		url    string
-		res    []things.Thing
+		res    []thingRes
 	}{
 		{
 			desc:   "get a list of things",
@@ -436,7 +467,7 @@ func TestListThings(t *testing.T) {
 		}
 		res, err := req.make()
 		assert.Nil(t, err, fmt.Sprintf("%s: unexpected error %s", tc.desc, err))
-		var data map[string][]things.Thing
+		var data map[string][]thingRes
 		json.NewDecoder(res.Body).Decode(&data)
 		assert.Equal(t, tc.status, res.StatusCode, fmt.Sprintf("%s: expected status code %d got %d", tc.desc, tc.status, res.StatusCode))
 		assert.ElementsMatch(t, tc.res, data["things"], fmt.Sprintf("%s: expected body %v got %v", tc.desc, tc.res, data["things"]))
@@ -652,7 +683,11 @@ func TestViewChannel(t *testing.T) {
 	defer ts.Close()
 
 	sch, _ := svc.CreateChannel(token, channel)
-	data := toJSON(sch)
+	chres := channelRes{
+		ID:   strconv.FormatUint(sch.ID, 10),
+		Name: sch.Name,
+	}
+	data := toJSON(chres)
 
 	cases := []struct {
 		desc   string
@@ -688,12 +723,14 @@ func TestListChannels(t *testing.T) {
 	ts := newServer(svc)
 	defer ts.Close()
 
-	channels := []things.Channel{}
+	channels := []channelRes{}
 	for i := 0; i < 101; i++ {
 		sch, _ := svc.CreateChannel(token, channel)
-		// must be "nulled" due to the JSON serialization that ignores owner
-		sch.Owner = ""
-		channels = append(channels, sch)
+		chres := channelRes{
+			ID:   strconv.FormatUint(sch.ID, 10),
+			Name: sch.Name,
+		}
+		channels = append(channels, chres)
 	}
 	channelURL := fmt.Sprintf("%s/channels", ts.URL)
 
@@ -702,7 +739,7 @@ func TestListChannels(t *testing.T) {
 		auth   string
 		status int
 		url    string
-		res    []things.Channel
+		res    []channelRes
 	}{
 		{
 			desc:   "get a list of channels",
@@ -813,7 +850,7 @@ func TestListChannels(t *testing.T) {
 		}
 		res, err := req.make()
 		assert.Nil(t, err, fmt.Sprintf("%s: unexpected error %s", tc.desc, err))
-		var body map[string][]things.Channel
+		var body map[string][]channelRes
 		json.NewDecoder(res.Body).Decode(&body)
 		assert.Equal(t, tc.status, res.StatusCode, fmt.Sprintf("%s: expected status code %d got %d", tc.desc, tc.status, res.StatusCode))
 		assert.ElementsMatch(t, tc.res, body["channels"], fmt.Sprintf("%s: expected body %v got %v", tc.desc, tc.res, body["channels"]))
@@ -999,4 +1036,18 @@ func TestDisconnnect(t *testing.T) {
 		assert.Nil(t, err, fmt.Sprintf("%s: unexpected error %s", tc.desc, err))
 		assert.Equal(t, tc.status, res.StatusCode, fmt.Sprintf("%s: expected status code %d got %d", tc.desc, tc.status, res.StatusCode))
 	}
+}
+
+type thingRes struct {
+	ID       string `json:"id"`
+	Type     string `json:"type"`
+	Name     string `json:"name,omitempty"`
+	Key      string `json:"key"`
+	Metadata string `json:"metadata,omitempty"`
+}
+
+type channelRes struct {
+	ID     string     `json:"id"`
+	Name   string     `json:"name,omitempty"`
+	Things []thingRes `json:"connected,omitempty"`
 }

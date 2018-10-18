@@ -102,31 +102,29 @@ func TestViewThing(t *testing.T) {
 func TestListThings(t *testing.T) {
 	svc := newService(map[string]string{token: email})
 
-	n := 10
-	for i := 0; i < n; i++ {
+	n := uint64(10)
+	for i := uint64(0); i < n; i++ {
 		svc.AddThing(token, thing)
 	}
 
 	cases := map[string]struct {
 		key    string
-		offset int
-		limit  int
-		size   int
+		offset uint64
+		limit  uint64
+		size   uint64
 		err    error
 	}{
 		"list all things":             {key: token, offset: 0, limit: n, size: n, err: nil},
 		"list half":                   {key: token, offset: n / 2, limit: n, size: n / 2, err: nil},
 		"list last thing":             {key: token, offset: n - 1, limit: n, size: 1, err: nil},
 		"list empty set":              {key: token, offset: n + 1, limit: n, size: 0, err: nil},
-		"list with negative offset":   {key: token, offset: -1, limit: n, size: 0, err: nil},
-		"list with negative limit":    {key: token, offset: 1, limit: -n, size: 0, err: nil},
 		"list with zero limit":        {key: token, offset: 1, limit: 0, size: 0, err: nil},
 		"list with wrong credentials": {key: wrongValue, offset: 0, limit: 0, size: 0, err: things.ErrUnauthorizedAccess},
 	}
 
 	for desc, tc := range cases {
 		ts, err := svc.ListThings(tc.key, tc.offset, tc.limit)
-		size := len(ts)
+		size := uint64(len(ts))
 		assert.Equal(t, tc.size, size, fmt.Sprintf("%s: expected %d got %d\n", desc, tc.size, size))
 		assert.Equal(t, tc.err, err, fmt.Sprintf("%s: expected %s got %s\n", desc, tc.err, err))
 	}
@@ -215,30 +213,28 @@ func TestViewChannel(t *testing.T) {
 func TestListChannels(t *testing.T) {
 	svc := newService(map[string]string{token: email})
 
-	n := 10
-	for i := 0; i < n; i++ {
+	n := uint64(10)
+	for i := uint64(0); i < n; i++ {
 		svc.CreateChannel(token, channel)
 	}
 	cases := map[string]struct {
 		key    string
-		offset int
-		limit  int
-		size   int
+		offset uint64
+		limit  uint64
+		size   uint64
 		err    error
 	}{
 		"list all channels":           {key: token, offset: 0, limit: n, size: n, err: nil},
 		"list half":                   {key: token, offset: n / 2, limit: n, size: n / 2, err: nil},
 		"list last channel":           {key: token, offset: n - 1, limit: n, size: 1, err: nil},
 		"list empty set":              {key: token, offset: n + 1, limit: n, size: 0, err: nil},
-		"list with negative offset":   {key: token, offset: -1, limit: n, size: 0, err: nil},
-		"list with negative limit":    {key: token, offset: 1, limit: -n, size: 0, err: nil},
 		"list with zero limit":        {key: token, offset: 1, limit: 0, size: 0, err: nil},
 		"list with wrong credentials": {key: wrongValue, offset: 0, limit: 0, size: 0, err: things.ErrUnauthorizedAccess},
 	}
 
 	for desc, tc := range cases {
 		ch, err := svc.ListChannels(tc.key, tc.offset, tc.limit)
-		size := len(ch)
+		size := uint64(len(ch))
 		assert.Equal(t, tc.size, size, fmt.Sprintf("%s: expected %d got %d\n", desc, tc.size, size))
 		assert.Equal(t, tc.err, err, fmt.Sprintf("%s: expected %s got %s\n", desc, tc.err, err))
 	}

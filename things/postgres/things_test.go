@@ -121,9 +121,9 @@ func TestMultiThingRetrieval(t *testing.T) {
 	idp := uuid.New()
 	thingRepo := postgres.NewThingRepository(db, testLog)
 
-	n := 10
+	n := uint64(10)
 
-	for i := 0; i < n; i++ {
+	for i := uint64(0); i < n; i++ {
 		t := things.Thing{
 			Owner: email,
 			Key:   idp.ID(),
@@ -134,9 +134,9 @@ func TestMultiThingRetrieval(t *testing.T) {
 
 	cases := map[string]struct {
 		owner  string
-		offset int
-		limit  int
-		size   int
+		offset uint64
+		limit  uint64
+		size   uint64
 	}{
 		"retrieve all things with existing owner":       {owner: email, offset: 0, limit: n, size: n},
 		"retrieve subset of things with existing owner": {owner: email, offset: n / 2, limit: n, size: n / 2},
@@ -144,8 +144,9 @@ func TestMultiThingRetrieval(t *testing.T) {
 	}
 
 	for desc, tc := range cases {
-		n := len(thingRepo.RetrieveAll(tc.owner, tc.offset, tc.limit))
-		assert.Equal(t, tc.size, n, fmt.Sprintf("%s: expected %d got %d\n", desc, tc.size, n))
+		result := thingRepo.RetrieveAll(tc.owner, tc.offset, tc.limit)
+		size := uint64(len(result))
+		assert.Equal(t, tc.size, size, fmt.Sprintf("%s: expected %d got %d\n", desc, tc.size, size))
 	}
 }
 

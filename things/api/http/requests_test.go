@@ -9,6 +9,7 @@ package http
 
 import (
 	"fmt"
+	"strconv"
 	"testing"
 
 	"github.com/mainflux/mainflux/things"
@@ -35,7 +36,7 @@ func TestIdentityReqValidation(t *testing.T) {
 func TestAddThingReqValidation(t *testing.T) {
 	key := uuid.NewV4().String()
 	valid := things.Thing{Type: "app"}
-	invalid := things.Thing{Type: "?"}
+	invalid := things.Thing{ID: 0, Type: ""}
 
 	cases := map[string]struct {
 		thing things.Thing
@@ -44,13 +45,15 @@ func TestAddThingReqValidation(t *testing.T) {
 	}{
 		"valid thing addition request": {thing: valid, key: key, err: nil},
 		"missing token":                {thing: valid, key: "", err: things.ErrUnauthorizedAccess},
-		"wrong thing type":             {thing: invalid, key: key, err: things.ErrMalformedEntity},
+		"empty thing type":             {thing: invalid, key: key, err: things.ErrMalformedEntity},
 	}
 
 	for desc, tc := range cases {
 		req := addThingReq{
-			key:   tc.key,
-			thing: tc.thing,
+			key:      tc.key,
+			Name:     tc.thing.Name,
+			Type:     tc.thing.Type,
+			Metadata: tc.thing.Metadata,
 		}
 
 		err := req.validate()
@@ -61,25 +64,26 @@ func TestAddThingReqValidation(t *testing.T) {
 func TestUpdateThingReqValidation(t *testing.T) {
 	key := uuid.NewV4().String()
 	valid := things.Thing{ID: 1, Type: "app"}
-	invalid := things.Thing{ID: 0, Type: "?"}
+	invalid := things.Thing{ID: 0, Type: ""}
 
 	cases := map[string]struct {
 		thing things.Thing
-		id    uint64
+		id    string
 		key   string
 		err   error
 	}{
-		"valid thing update request": {thing: valid, id: valid.ID, key: key, err: nil},
-		"invalid thing ID":           {thing: valid, id: invalid.ID, key: key, err: things.ErrNotFound},
-		"missing token":              {thing: valid, id: valid.ID, key: "", err: things.ErrUnauthorizedAccess},
-		"wrong thing type":           {thing: invalid, id: valid.ID, key: key, err: things.ErrMalformedEntity},
+		"valid thing update request": {thing: valid, id: strconv.FormatUint(valid.ID, 10), key: key, err: nil},
+		"missing token":              {thing: valid, id: strconv.FormatUint(valid.ID, 10), key: "", err: things.ErrUnauthorizedAccess},
+		"empty thing type":           {thing: invalid, id: strconv.FormatUint(valid.ID, 10), key: key, err: things.ErrMalformedEntity},
 	}
 
 	for desc, tc := range cases {
 		req := updateThingReq{
-			key:   tc.key,
-			id:    tc.id,
-			thing: tc.thing,
+			key:      tc.key,
+			id:       tc.id,
+			Name:     tc.thing.Name,
+			Type:     tc.thing.Type,
+			Metadata: tc.thing.Metadata,
 		}
 
 		err := req.validate()
@@ -102,8 +106,8 @@ func TestCreateChannelReqValidation(t *testing.T) {
 
 	for desc, tc := range cases {
 		req := createChannelReq{
-			key:     tc.key,
-			channel: tc.channel,
+			key:  tc.key,
+			Name: tc.channel.Name,
 		}
 
 		err := req.validate()
@@ -114,24 +118,22 @@ func TestCreateChannelReqValidation(t *testing.T) {
 func TestUpdateChannelReqValidation(t *testing.T) {
 	key := uuid.NewV4().String()
 	channel := things.Channel{ID: 1}
-	wrongID := uint64(0)
 
 	cases := map[string]struct {
 		channel things.Channel
-		id      uint64
+		id      string
 		key     string
 		err     error
 	}{
-		"valid channel update request": {channel: channel, id: channel.ID, key: key, err: nil},
-		"invalid channel ID":           {channel: channel, id: wrongID, key: key, err: things.ErrNotFound},
-		"missing token":                {channel: channel, id: channel.ID, key: "", err: things.ErrUnauthorizedAccess},
+		"valid channel update request": {channel: channel, id: strconv.FormatUint(channel.ID, 10), key: key, err: nil},
+		"missing token":                {channel: channel, id: strconv.FormatUint(channel.ID, 10), key: "", err: things.ErrUnauthorizedAccess},
 	}
 
 	for desc, tc := range cases {
 		req := updateChannelReq{
-			key:     tc.key,
-			id:      tc.id,
-			channel: tc.channel,
+			key:  tc.key,
+			id:   tc.id,
+			Name: tc.channel.Name,
 		}
 
 		err := req.validate()
@@ -142,16 +144,14 @@ func TestUpdateChannelReqValidation(t *testing.T) {
 func TestViewResourceReqValidation(t *testing.T) {
 	key := uuid.NewV4().String()
 	id := uint64(1)
-	wrongID := uint64(0)
 
 	cases := map[string]struct {
-		id  uint64
+		id  string
 		key string
 		err error
 	}{
-		"valid resource viewing request": {id: id, key: key, err: nil},
-		"missing token":                  {id: id, key: "", err: things.ErrUnauthorizedAccess},
-		"invalid resource ID":            {id: wrongID, key: key, err: things.ErrNotFound},
+		"valid resource viewing request": {id: strconv.FormatUint(id, 10), key: key, err: nil},
+		"missing token":                  {id: strconv.FormatUint(id, 10), key: "", err: things.ErrUnauthorizedAccess},
 	}
 
 	for desc, tc := range cases {
@@ -163,19 +163,17 @@ func TestViewResourceReqValidation(t *testing.T) {
 
 func TestListResourcesReqValidation(t *testing.T) {
 	key := uuid.NewV4().String()
-	value := 10
+	value := uint64(10)
 
 	cases := map[string]struct {
 		key    string
-		offset int
-		limit  int
+		offset uint64
+		limit  uint64
 		err    error
 	}{
 		"valid listing request": {key: key, offset: value, limit: value, err: nil},
 		"missing token":         {key: "", offset: value, limit: value, err: things.ErrUnauthorizedAccess},
-		"negative offset":       {key: key, offset: -value, limit: value, err: things.ErrMalformedEntity},
 		"zero limit":            {key: key, offset: value, limit: 0, err: things.ErrMalformedEntity},
-		"negative limit":        {key: key, offset: value, limit: -value, err: things.ErrMalformedEntity},
 		"too big limit":         {key: key, offset: value, limit: 20 * value, err: things.ErrMalformedEntity},
 	}
 
