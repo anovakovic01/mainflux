@@ -83,6 +83,12 @@
   version = "v0.3.3"
 
 [[projects]]
+  name = "github.com/eclipse/paho.mqtt.golang"
+  packages = ["packets"]
+  revision = "36d01c2b4cbeb3d2a12063e4880ce30800af9560"
+  version = "v1.1.1"
+
+[[projects]]
   name = "github.com/fatih/color"
   packages = ["."]
   revision = "5b77d2a35fb0ede96d138fc9a99f5c9b6aef11b4"
@@ -180,12 +186,6 @@
   name = "github.com/hailocab/go-hostpool"
   packages = ["."]
   revision = "e80d13ce29ede4452c43dea11e79b9bc8a15b478"
-
-[[projects]]
-  branch = "master"
-  name = "github.com/hokaccha/go-prettyjson"
-  packages = ["."]
-  revision = "e6b9231a2b1cc5798b336fdbf99c16cd8ad1e0c9"
 
 [[projects]]
   name = "github.com/inconshreveable/mousetrap"
@@ -583,6 +583,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "1f18adf44738d8f5c48b2f0576ab90c2f2c549f13a846b8f3c95aabaebe8efb4"
+  inputs-digest = "dc2009dca53ece2332e4f4f7f37edc3b834e5b5b9280314fd9015bc8562a1b20"
   solver-name = "gps-cdcl"
   solver-version = 1
