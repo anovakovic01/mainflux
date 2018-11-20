@@ -95,7 +95,7 @@ func main() {
 func loadConfigs() (config, influxdata.HTTPConfig) {
 	tls, err := strconv.ParseBool(mainflux.Env(envClientTLS, defClientTLS))
 	if err != nil {
-		tls = false
+		log.Fatalf("Invalid value passed for %s\n", envClientTLS)
 	}
 
 	cfg := config{
