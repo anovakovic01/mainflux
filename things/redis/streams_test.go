@@ -64,7 +64,7 @@ func TestAddThing(t *testing.T) {
 	}{
 		{
 			desc:  "create thing successfully",
-			thing: things.Thing{Type: "app", Name: "a"},
+			thing: things.Thing{Type: "app", Name: "a", Metadata: "metadata"},
 			key:   token,
 			err:   nil,
 			event: map[string]interface{}{
@@ -72,6 +72,7 @@ func TestAddThing(t *testing.T) {
 				"name":      "a",
 				"owner":     email,
 				"type":      "app",
+				"metadata":  "metadata",
 				"operation": thingCreate,
 			},
 		},
@@ -110,7 +111,7 @@ func TestUpdateThing(t *testing.T) {
 
 	svc := newService(map[string]string{token: email})
 	// Create thing without sending event.
-	sth, err := svc.AddThing(token, things.Thing{Type: "app", Name: "a"})
+	sth, err := svc.AddThing(token, things.Thing{Type: "app", Name: "a", Metadata: "metadata"})
 	require.Nil(t, err, fmt.Sprintf("unexpected error %s", err))
 
 	svc = redis.NewEventStoreMiddleware(svc, redisClient)
@@ -124,13 +125,14 @@ func TestUpdateThing(t *testing.T) {
 	}{
 		{
 			desc:  "update existing thing successfully",
-			thing: things.Thing{ID: sth.ID, Type: "app", Name: "a"},
+			thing: things.Thing{ID: sth.ID, Type: "app", Name: "a", Metadata: "metadata1"},
 			key:   token,
 			err:   nil,
 			event: map[string]interface{}{
 				"id":        strconv.FormatUint(sth.ID, 10),
 				"name":      "a",
 				"type":      "app",
+				"metadata":  "metadata1",
 				"operation": thingUpdate,
 			},
 		},
