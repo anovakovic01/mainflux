@@ -114,9 +114,6 @@ func parseMessage(names []string, fields []interface{}) mainflux.Message {
 			if s, ok := fields[i].(string); ok {
 				msgField.SetString(s)
 			}
-		case uint64:
-			u, _ := strconv.ParseUint(fields[i].(string), 10, 64)
-			msgField.SetUint(u)
 		case float64:
 			if name == "time" {
 				t, err := time.Parse(time.RFC3339, fields[i].(string))
