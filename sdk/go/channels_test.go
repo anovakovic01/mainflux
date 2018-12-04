@@ -152,9 +152,9 @@ func TestChannels(t *testing.T) {
 	var channels []sdk.Channel
 	mainfluxSDK := sdk.NewSDK(sdkConf)
 	for i := 1; i < 101; i++ {
-		channel := sdk.Channel{ID: strconv.Itoa(i), Name: "test"}
-		mainfluxSDK.CreateChannel(channel, token)
-		channels = append(channels, channel)
+		ch := sdk.Channel{ID: strconv.Itoa(i), Name: "test"}
+		mainfluxSDK.CreateChannel(ch, token)
+		channels = append(channels, ch)
 	}
 
 	cases := []struct {

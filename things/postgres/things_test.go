@@ -104,6 +104,15 @@ func TestThingUpdate(t *testing.T) {
 			},
 			err: things.ErrNotFound,
 		},
+		{
+			desc: "update thing with invalid data",
+			thing: things.Thing{
+				ID:       id,
+				Owner:    email,
+				Metadata: "invalid",
+			},
+			err: things.ErrMalformedEntity,
+		},
 	}
 
 	for _, tc := range cases {
