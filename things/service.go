@@ -46,6 +46,11 @@ type Service interface {
 	// user identified by the provided key.
 	ListThings(string, uint64, uint64) ([]Thing, error)
 
+	// ListThingsByChannel retrieves data about subset of things that are
+	// connected to specified channel and belong to the user identified by
+	// the provided key.
+	ListThingsByChannel(string, string, uint64, uint64) (ThingsPage, error)
+
 	// RemoveThing removes the thing identified with the provided ID, that
 	// belongs to the user identified by the provided key.
 	RemoveThing(string, string) error
@@ -185,6 +190,18 @@ func (ts *thingsService) ListThings(key string, offset, limit uint64) ([]Thing, 
 	}
 
 	return ts.things.RetrieveAll(res.GetValue(), offset, limit), nil
+}
+
+func (ts *thingsService) ListThingsByChannel(key, channel string, offset, limit uint64) (ThingsPage, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+
+	res, err := ts.users.Identify(ctx, &mainflux.Token{Value: key})
+	if err != nil {
+		return ThingsPage{}, ErrUnauthorizedAccess
+	}
+
+	return ts.things.RetrieveByChannel(res.GetValue(), channel, offset, limit), nil
 }
 
 func (ts *thingsService) RemoveThing(key string, id string) error {

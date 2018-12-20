@@ -85,6 +85,10 @@ func (es eventStore) ListThings(key string, offset, limit uint64) ([]things.Thin
 	return es.svc.ListThings(key, offset, limit)
 }
 
+func (es eventStore) ListThingsByChannel(key, id string, offset, limit uint64) (things.ThingsPage, error) {
+	return es.svc.ListThingsByChannel(key, id, offset, limit)
+}
+
 func (es eventStore) RemoveThing(key, id string) error {
 	if err := es.svc.RemoveThing(key, id); err != nil {
 		return err

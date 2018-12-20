@@ -114,6 +114,13 @@ func MakeHandler(svc things.Service) http.Handler {
 		opts...,
 	))
 
+	r.Get("/channels/:id/things", kithttp.NewServer(
+		listThingsByChannelEndpoint(svc),
+		decodeListByConnection,
+		encodeResponse,
+		opts...,
+	))
+
 	r.Get("/channels", kithttp.NewServer(
 		listChannelsEndpoint(svc),
 		decodeList,

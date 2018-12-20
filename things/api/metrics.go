@@ -70,6 +70,15 @@ func (ms *metricsMiddleware) ListThings(key string, offset, limit uint64) ([]thi
 	return ms.svc.ListThings(key, offset, limit)
 }
 
+func (ms *metricsMiddleware) ListThingsByChannel(key, id string, offset, limit uint64) (things.ThingsPage, error) {
+	defer func(begin time.Time) {
+		ms.counter.With("method", "list_things_by_channel").Add(1)
+		ms.latency.With("method", "list_things_by_channel").Observe(time.Since(begin).Seconds())
+	}(time.Now())
+
+	return ms.svc.ListThingsByChannel(key, id, offset, limit)
+}
+
 func (ms *metricsMiddleware) RemoveThing(key, id string) error {
 	defer func(begin time.Time) {
 		ms.counter.With("method", "remove_thing").Add(1)
@@ -117,8 +126,8 @@ func (ms *metricsMiddleware) ListChannels(key string, offset, limit uint64) ([]t
 
 func (ms *metricsMiddleware) ListChannelsByThing(key, id string, offset, limit uint64) (things.ChannelsPage, error) {
 	defer func(begin time.Time) {
-		ms.counter.With("method", "list_channels").Add(1)
-		ms.latency.With("method", "list_channels").Observe(time.Since(begin).Seconds())
+		ms.counter.With("method", "list_channels_by_thing").Add(1)
+		ms.latency.With("method", "list_channels_by_thing").Observe(time.Since(begin).Seconds())
 	}(time.Now())
 
 	return ms.svc.ListChannelsByThing(key, id, offset, limit)

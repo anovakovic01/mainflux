@@ -123,6 +123,23 @@ func (res listThingsRes) Empty() bool {
 	return false
 }
 
+type thingsPageRes struct {
+	pageRes
+	Things []viewThingRes `json:"things"`
+}
+
+func (res thingsPageRes) Code() int {
+	return http.StatusOK
+}
+
+func (res thingsPageRes) Headers() map[string]string {
+	return map[string]string{}
+}
+
+func (res thingsPageRes) Empty() bool {
+	return false
+}
+
 type channelRes struct {
 	id      string
 	created bool

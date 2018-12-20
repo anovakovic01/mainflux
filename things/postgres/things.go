@@ -134,6 +134,55 @@ func (tr thingRepository) RetrieveAll(owner string, offset, limit uint64) []thin
 	return items
 }
 
+func (tr thingRepository) RetrieveByChannel(owner, channel string, offset, limit uint64) things.ThingsPage {
+	q := `SELECT id, type, name, metadata
+	      FROM things th
+	      INNER JOIN connections co
+		  ON th.id = co.thing_id
+		  WHERE th.owner = $1 AND co.channel_id = $2
+		  ORDER BY th.id
+		  LIMIT $3
+		  OFFSET $4`
+	items := []things.Thing{}
+
+	rows, err := tr.db.Query(q, owner, channel, limit, offset)
+	if err != nil {
+		tr.log.Error(fmt.Sprintf("Failed to retrieve things due to %s", err))
+		return things.ThingsPage{}
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		t := things.Thing{Owner: owner}
+		if err := rows.Scan(&t.ID, &t.Type, &t.Name, &t.Metadata); err != nil {
+			tr.log.Error(fmt.Sprintf("Failed to read retrieved thing due to %s", err))
+			return things.ThingsPage{}
+		}
+		items = append(items, t)
+	}
+
+	q = `SELECT COUNT(*)
+	     FROM things th
+	     INNER JOIN connections co
+	     ON th.id = co.thing_id
+	     WHERE th.owner = $1 AND co.channel_id = $2`
+
+	var total uint64
+	if err := tr.db.QueryRow(q, owner, channel).Scan(&total); err != nil {
+		tr.log.Error(fmt.Sprintf("Failed to count things due to %s", err))
+		return things.ThingsPage{}
+	}
+
+	return things.ThingsPage{
+		Things: items,
+		PageMetadata: things.PageMetadata{
+			Total:  total,
+			Offset: offset,
+			Limit:  limit,
+		},
+	}
+}
+
 func (tr thingRepository) Remove(owner, id string) error {
 	q := `DELETE FROM things WHERE id = $1 AND owner = $2`
 	tr.db.Exec(q, id, owner)

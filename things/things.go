@@ -20,6 +20,13 @@ type Thing struct {
 	Metadata string
 }
 
+// ThingsPage contains page related metadata as well as list of things that
+// belong to this page.
+type ThingsPage struct {
+	PageMetadata
+	Things []Thing
+}
+
 var thingTypes = map[string]bool{
 	"app":    true,
 	"device": true,
@@ -53,6 +60,10 @@ type ThingRepository interface {
 
 	// RetrieveAll retrieves the subset of things owned by the specified user.
 	RetrieveAll(string, uint64, uint64) []Thing
+
+	// RetrieveByChannel retrieves the subset of things owned by the specified
+	// user and connected to specified channel.
+	RetrieveByChannel(string, string, uint64, uint64) ThingsPage
 
 	// Remove removes the thing having the provided identifier, that is owned
 	// by the specified user.
