@@ -111,14 +111,14 @@ func (tr thingRepository) RetrieveByKey(key string) (string, error) {
 	return id, nil
 }
 
-func (tr thingRepository) RetrieveAll(owner string, offset, limit uint64) []things.Thing {
+func (tr thingRepository) RetrieveAll(owner string, offset, limit uint64) things.ThingsPage {
 	q := `SELECT id, name, type, key, metadata FROM things WHERE owner = $1 ORDER BY id LIMIT $2 OFFSET $3`
 	items := []things.Thing{}
 
 	rows, err := tr.db.Query(q, owner, limit, offset)
 	if err != nil {
 		tr.log.Error(fmt.Sprintf("Failed to retrieve things due to %s", err))
-		return []things.Thing{}
+		return things.ThingsPage{}
 	}
 	defer rows.Close()
 
@@ -126,12 +126,29 @@ func (tr thingRepository) RetrieveAll(owner string, offset, limit uint64) []thin
 		c := things.Thing{Owner: owner}
 		if err = rows.Scan(&c.ID, &c.Name, &c.Type, &c.Key, &c.Metadata); err != nil {
 			tr.log.Error(fmt.Sprintf("Failed to read retrieved thing due to %s", err))
-			return []things.Thing{}
+			return things.ThingsPage{}
 		}
 		items = append(items, c)
 	}
 
-	return items
+	q = `SELECT COUNT(*) FROM things WHERE owner = $1`
+
+	var total uint64
+	if err := tr.db.QueryRow(q, owner).Scan(&total); err != nil {
+		tr.log.Error(fmt.Sprintf("Failed to count things due to %s", err))
+		return things.ThingsPage{}
+	}
+
+	page := things.ThingsPage{
+		Things: items,
+		PageMetadata: things.PageMetadata{
+			Total:  total,
+			Offset: offset,
+			Limit:  limit,
+		},
+	}
+
+	return page
 }
 
 func (tr thingRepository) RetrieveByChannel(owner, channel string, offset, limit uint64) things.ThingsPage {

@@ -44,7 +44,7 @@ type Service interface {
 
 	// ListThings retrieves data about subset of things that belongs to the
 	// user identified by the provided key.
-	ListThings(string, uint64, uint64) ([]Thing, error)
+	ListThings(string, uint64, uint64) (ThingsPage, error)
 
 	// ListThingsByChannel retrieves data about subset of things that are
 	// connected to specified channel and belong to the user identified by
@@ -68,7 +68,7 @@ type Service interface {
 
 	// ListChannels retrieves data about subset of channels that belongs to the
 	// user identified by the provided key.
-	ListChannels(string, uint64, uint64) ([]Channel, error)
+	ListChannels(string, uint64, uint64) (ChannelsPage, error)
 
 	// ListChannelsByThing retrieves data about subset of channels that have
 	// specified thing connected to them and belong to the user identified by
@@ -180,13 +180,13 @@ func (ts *thingsService) ViewThing(key, id string) (Thing, error) {
 	return ts.things.RetrieveByID(res.GetValue(), id)
 }
 
-func (ts *thingsService) ListThings(key string, offset, limit uint64) ([]Thing, error) {
+func (ts *thingsService) ListThings(key string, offset, limit uint64) (ThingsPage, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 
 	res, err := ts.users.Identify(ctx, &mainflux.Token{Value: key})
 	if err != nil {
-		return nil, ErrUnauthorizedAccess
+		return ThingsPage{}, ErrUnauthorizedAccess
 	}
 
 	return ts.things.RetrieveAll(res.GetValue(), offset, limit), nil
@@ -263,13 +263,13 @@ func (ts *thingsService) ViewChannel(key, id string) (Channel, error) {
 	return ts.channels.RetrieveByID(res.GetValue(), id)
 }
 
-func (ts *thingsService) ListChannels(key string, offset, limit uint64) ([]Channel, error) {
+func (ts *thingsService) ListChannels(key string, offset, limit uint64) (ChannelsPage, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 
 	res, err := ts.users.Identify(ctx, &mainflux.Token{Value: key})
 	if err != nil {
-		return nil, ErrUnauthorizedAccess
+		return ChannelsPage{}, ErrUnauthorizedAccess
 	}
 
 	return ts.channels.RetrieveAll(res.GetValue(), offset, limit), nil

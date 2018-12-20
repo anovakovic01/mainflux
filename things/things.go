@@ -59,7 +59,7 @@ type ThingRepository interface {
 	RetrieveByKey(string) (string, error)
 
 	// RetrieveAll retrieves the subset of things owned by the specified user.
-	RetrieveAll(string, uint64, uint64) []Thing
+	RetrieveAll(string, uint64, uint64) ThingsPage
 
 	// RetrieveByChannel retrieves the subset of things owned by the specified
 	// user and connected to specified channel.

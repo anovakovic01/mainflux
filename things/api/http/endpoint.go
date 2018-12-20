@@ -97,13 +97,19 @@ func listThingsEndpoint(svc things.Service) endpoint.Endpoint {
 			return nil, err
 		}
 
-		things, err := svc.ListThings(req.key, req.offset, req.limit)
+		page, err := svc.ListThings(req.key, req.offset, req.limit)
 		if err != nil {
 			return nil, err
 		}
 
-		res := listThingsRes{}
-		for _, thing := range things {
+		res := thingsPageRes{
+			pageRes: pageRes{
+				Total:  page.Total,
+				Offset: page.Offset,
+				Limit:  page.Limit,
+			},
+		}
+		for _, thing := range page.Things {
 			view := viewThingRes{
 				ID:       thing.ID,
 				Owner:    thing.Owner,
@@ -265,35 +271,28 @@ func listChannelsEndpoint(svc things.Service) endpoint.Endpoint {
 			return nil, err
 		}
 
-		channels, err := svc.ListChannels(req.key, req.offset, req.limit)
+		page, err := svc.ListChannels(req.key, req.offset, req.limit)
 		if err != nil {
 			return nil, err
 		}
 
-		res := listChannelsRes{}
+		res := channelsPageRes{
+			pageRes: pageRes{
+				Total:  page.Total,
+				Offset: page.Offset,
+				Limit:  page.Limit,
+			},
+		}
 		// Cast channels
-		for _, channel := range channels {
-			cView := viewChannelRes{
+		for _, channel := range page.Channels {
+			view := viewChannelRes{
 				ID:       channel.ID,
 				Owner:    channel.Owner,
 				Name:     channel.Name,
 				Metadata: channel.Metadata,
 			}
 
-			// Cast things
-			for _, thing := range channel.Things {
-				tView := viewThingRes{
-					ID:       thing.ID,
-					Owner:    thing.Owner,
-					Type:     thing.Type,
-					Name:     thing.Name,
-					Key:      thing.Key,
-					Metadata: thing.Metadata,
-				}
-				cView.Things = append(cView.Things, tView)
-			}
-
-			res.Channels = append(res.Channels, cView)
+			res.Channels = append(res.Channels, view)
 		}
 
 		return res, nil
