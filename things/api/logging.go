@@ -146,6 +146,18 @@ func (lm *loggingMiddleware) ListChannels(key string, offset, limit uint64) (cha
 	return lm.svc.ListChannels(key, offset, limit)
 }
 
+func (lm *loggingMiddleware) ListChannelsByThing(key, id string, offset, limit uint64) (_ things.ChannelsPage, err error) {
+	defer func(begin time.Time) {
+		message := fmt.Sprintf("Method list_channels for thing %s took %s to complete", id, time.Since(begin))
+		if err != nil {
+			lm.logger.Warn(fmt.Sprintf("%s with error: %s", message, err))
+		}
+		lm.logger.Info(fmt.Sprintf("%s without errors.", message))
+	}(time.Now())
+
+	return lm.svc.ListChannelsByThing(key, id, offset, limit)
+}
+
 func (lm *loggingMiddleware) RemoveChannel(key, id string) (err error) {
 	defer func(begin time.Time) {
 		message := fmt.Sprintf("Method remove_channel for key %s and channel %s took %s to complete", key, id, time.Since(begin))

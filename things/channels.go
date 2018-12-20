@@ -17,6 +17,13 @@ type Channel struct {
 	Metadata string
 }
 
+// ChannelsPage contains page related metadata as well as list of channels that
+// belong to this page.
+type ChannelsPage struct {
+	PageMetadata
+	Channels []Channel
+}
+
 // ChannelRepository specifies a channel persistence API.
 type ChannelRepository interface {
 	// Save persists the channel. Successful operation is indicated by unique
@@ -34,6 +41,10 @@ type ChannelRepository interface {
 
 	// RetrieveAll retrieves the subset of channels owned by the specified user.
 	RetrieveAll(string, uint64, uint64) []Channel
+
+	// RetrieveByThing retrieves the subset of channels owned by the specified
+	// user and have specified thing connected to them.
+	RetrieveByThing(string, string, uint64, uint64) ChannelsPage
 
 	// Remove removes the channel having the provided identifier, that is owned
 	// by the specified user.

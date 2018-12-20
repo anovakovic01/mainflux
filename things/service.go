@@ -65,6 +65,11 @@ type Service interface {
 	// user identified by the provided key.
 	ListChannels(string, uint64, uint64) ([]Channel, error)
 
+	// ListChannelsByThing retrieves data about subset of channels that have
+	// specified thing connected to them and belong to the user identified by
+	// the provided key.
+	ListChannelsByThing(string, string, uint64, uint64) (ChannelsPage, error)
+
 	// RemoveChannel removes the thing identified by the provided ID, that
 	// belongs to the user identified by the provided key.
 	RemoveChannel(string, string) error
@@ -82,6 +87,13 @@ type Service interface {
 
 	// Identify returns thing ID for given thing key.
 	Identify(string) (string, error)
+}
+
+// PageMetadata contains page metadata that helps navigation.
+type PageMetadata struct {
+	Total  uint64
+	Offset uint64
+	Limit  uint64
 }
 
 var _ Service = (*thingsService)(nil)
@@ -244,6 +256,18 @@ func (ts *thingsService) ListChannels(key string, offset, limit uint64) ([]Chann
 	}
 
 	return ts.channels.RetrieveAll(res.GetValue(), offset, limit), nil
+}
+
+func (ts *thingsService) ListChannelsByThing(key, thing string, offset, limit uint64) (ChannelsPage, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+
+	res, err := ts.users.Identify(ctx, &mainflux.Token{Value: key})
+	if err != nil {
+		return ChannelsPage{}, ErrUnauthorizedAccess
+	}
+
+	return ts.channels.RetrieveByThing(res.GetValue(), thing, offset, limit), nil
 }
 
 func (ts *thingsService) RemoveChannel(key, id string) error {

@@ -186,6 +186,23 @@ func (res listChannelsRes) Empty() bool {
 	return false
 }
 
+type channelsPageRes struct {
+	pageRes
+	Channels []viewChannelRes `json:"channels"`
+}
+
+func (res channelsPageRes) Code() int {
+	return http.StatusOK
+}
+
+func (res channelsPageRes) Headers() map[string]string {
+	return map[string]string{}
+}
+
+func (res channelsPageRes) Empty() bool {
+	return false
+}
+
 type connectionRes struct{}
 
 func (res connectionRes) Code() int {
@@ -212,4 +229,10 @@ func (res disconnectionRes) Headers() map[string]string {
 
 func (res disconnectionRes) Empty() bool {
 	return true
+}
+
+type pageRes struct {
+	Total  uint64 `json:"total"`
+	Offset uint64 `json:"offset"`
+	Limit  uint64 `json:"limit"`
 }

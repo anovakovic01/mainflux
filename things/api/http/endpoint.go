@@ -265,6 +265,40 @@ func listChannelsEndpoint(svc things.Service) endpoint.Endpoint {
 	}
 }
 
+func listChannelsByThingEndpoint(svc things.Service) endpoint.Endpoint {
+	return func(_ context.Context, request interface{}) (interface{}, error) {
+		req := request.(listByConnectionReq)
+
+		if err := req.validate(); err != nil {
+			return nil, err
+		}
+
+		page, err := svc.ListChannelsByThing(req.key, req.id, req.offset, req.limit)
+		if err != nil {
+			return nil, err
+		}
+
+		res := channelsPageRes{
+			pageRes: pageRes{
+				Total:  page.Total,
+				Offset: page.Offset,
+				Limit:  page.Limit,
+			},
+		}
+		for _, channel := range page.Channels {
+			view := viewChannelRes{
+				ID:       channel.ID,
+				Owner:    channel.Owner,
+				Name:     channel.Name,
+				Metadata: channel.Metadata,
+			}
+			res.Channels = append(res.Channels, view)
+		}
+
+		return res, nil
+	}
+}
+
 func removeChannelEndpoint(svc things.Service) endpoint.Endpoint {
 	return func(_ context.Context, request interface{}) (interface{}, error) {
 		req := request.(viewResourceReq)

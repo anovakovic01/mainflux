@@ -153,6 +153,10 @@ func (es eventStore) ListChannels(key string, offset, limit uint64) ([]things.Ch
 	return es.svc.ListChannels(key, offset, limit)
 }
 
+func (es eventStore) ListChannelsByThing(key, id string, offset, limit uint64) (things.ChannelsPage, error) {
+	return es.svc.ListChannelsByThing(key, id, offset, limit)
+}
+
 func (es eventStore) RemoveChannel(key, id string) error {
 	if err := es.svc.RemoveChannel(key, id); err != nil {
 		return err
