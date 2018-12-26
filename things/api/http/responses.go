@@ -19,10 +19,10 @@ var (
 	_ mainflux.Response = (*removeRes)(nil)
 	_ mainflux.Response = (*thingRes)(nil)
 	_ mainflux.Response = (*viewThingRes)(nil)
-	_ mainflux.Response = (*listThingsRes)(nil)
+	_ mainflux.Response = (*thingsPageRes)(nil)
 	_ mainflux.Response = (*channelRes)(nil)
 	_ mainflux.Response = (*viewChannelRes)(nil)
-	_ mainflux.Response = (*listChannelsRes)(nil)
+	_ mainflux.Response = (*channelsPageRes)(nil)
 	_ mainflux.Response = (*connectionRes)(nil)
 	_ mainflux.Response = (*disconnectionRes)(nil)
 )
@@ -107,22 +107,6 @@ func (res viewThingRes) Empty() bool {
 	return false
 }
 
-type listThingsRes struct {
-	Things []viewThingRes `json:"things"`
-}
-
-func (res listThingsRes) Code() int {
-	return http.StatusOK
-}
-
-func (res listThingsRes) Headers() map[string]string {
-	return map[string]string{}
-}
-
-func (res listThingsRes) Empty() bool {
-	return false
-}
-
 type thingsPageRes struct {
 	pageRes
 	Things []viewThingRes `json:"things"`
@@ -184,22 +168,6 @@ func (res viewChannelRes) Headers() map[string]string {
 }
 
 func (res viewChannelRes) Empty() bool {
-	return false
-}
-
-type listChannelsRes struct {
-	Channels []viewChannelRes `json:"channels"`
-}
-
-func (res listChannelsRes) Code() int {
-	return http.StatusOK
-}
-
-func (res listChannelsRes) Headers() map[string]string {
-	return map[string]string{}
-}
-
-func (res listChannelsRes) Empty() bool {
 	return false
 }
 
