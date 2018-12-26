@@ -81,7 +81,7 @@ func (es eventStore) ViewThing(key, id string) (things.Thing, error) {
 	return es.svc.ViewThing(key, id)
 }
 
-func (es eventStore) ListThings(key string, offset, limit uint64) ([]things.Thing, error) {
+func (es eventStore) ListThings(key string, offset, limit uint64) (things.ThingsPage, error) {
 	return es.svc.ListThings(key, offset, limit)
 }
 
@@ -153,7 +153,7 @@ func (es eventStore) ViewChannel(key, id string) (things.Channel, error) {
 	return es.svc.ViewChannel(key, id)
 }
 
-func (es eventStore) ListChannels(key string, offset, limit uint64) ([]things.Channel, error) {
+func (es eventStore) ListChannels(key string, offset, limit uint64) (things.ChannelsPage, error) {
 	return es.svc.ListChannels(key, offset, limit)
 }
 

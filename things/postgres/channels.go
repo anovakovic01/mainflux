@@ -100,27 +100,6 @@ func (cr channelRepository) RetrieveByID(owner, id string) (things.Channel, erro
 		return empty, err
 	}
 
-	q = `SELECT id, name, type, key, metadata FROM things t
-	INNER JOIN connections conn
-	ON t.id = conn.thing_id AND t.owner = conn.thing_owner
-	WHERE conn.channel_id = $1 AND conn.channel_owner = $2`
-
-	rows, err := cr.db.Query(q, id, owner)
-	if err != nil {
-		cr.log.Error(fmt.Sprintf("Failed to retrieve connected due to %s", err))
-		return things.Channel{}, err
-	}
-	defer rows.Close()
-
-	for rows.Next() {
-		c := things.Thing{Owner: owner}
-		if err = rows.Scan(&c.ID, &c.Name, &c.Type, &c.Key, &c.Metadata); err != nil {
-			cr.log.Error(fmt.Sprintf("Failed to read connected thing due to %s", err))
-			return things.Channel{}, err
-		}
-		channel.Things = append(channel.Things, c)
-	}
-
 	return channel, nil
 }
 

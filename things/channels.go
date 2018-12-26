@@ -13,7 +13,6 @@ type Channel struct {
 	ID       string
 	Owner    string
 	Name     string
-	Things   []Thing
 	Metadata string
 }
 

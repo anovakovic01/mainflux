@@ -150,6 +150,7 @@ func listThingsByChannelEndpoint(svc things.Service) endpoint.Endpoint {
 				ID:       thing.ID,
 				Owner:    thing.Owner,
 				Type:     thing.Type,
+				Key:      thing.Key,
 				Name:     thing.Name,
 				Metadata: thing.Metadata,
 			}
@@ -246,17 +247,6 @@ func viewChannelEndpoint(svc things.Service) endpoint.Endpoint {
 			Owner:    channel.Owner,
 			Name:     channel.Name,
 			Metadata: channel.Metadata,
-		}
-		for _, thing := range channel.Things {
-			view := viewThingRes{
-				ID:       thing.ID,
-				Owner:    thing.Owner,
-				Type:     thing.Type,
-				Name:     thing.Name,
-				Key:      thing.Key,
-				Metadata: thing.Metadata,
-			}
-			res.Things = append(res.Things, view)
 		}
 
 		return res, nil
