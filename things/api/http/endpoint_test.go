@@ -382,7 +382,8 @@ func TestListThings(t *testing.T) {
 
 	data := []thingRes{}
 	for i := 0; i < 101; i++ {
-		sth, _ := svc.AddThing(token, thing)
+		sth, err := svc.AddThing(token, thing)
+		require.Nil(t, err, fmt.Sprintf("unexpected error: %s", err))
 		thres := thingRes{
 			ID:       sth.ID,
 			Type:     sth.Type,
@@ -1001,8 +1002,10 @@ func TestListChannels(t *testing.T) {
 
 	channels := []channelRes{}
 	for i := 0; i < 101; i++ {
-		sch, _ := svc.CreateChannel(token, channel)
-		sth, _ := svc.AddThing(token, thing)
+		sch, err := svc.CreateChannel(token, channel)
+		require.Nil(t, err, fmt.Sprintf("unexpected error: %s", err))
+		sth, err := svc.AddThing(token, thing)
+		require.Nil(t, err, fmt.Sprintf("unexpected error: %s", err))
 		svc.Connect(token, sch.ID, sth.ID)
 
 		chres := channelRes{
