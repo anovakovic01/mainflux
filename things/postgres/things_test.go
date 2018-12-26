@@ -303,6 +303,13 @@ func TestMultiThingRetrievalByChannel(t *testing.T) {
 			limit:   n,
 			size:    0,
 		},
+		"retrieve things by non-existent channel": {
+			owner:   email,
+			channel: "non-existent",
+			offset:  0,
+			limit:   n,
+			size:    0,
+		},
 	}
 
 	for desc, tc := range cases {

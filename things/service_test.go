@@ -296,6 +296,14 @@ func TestListThingsByChannel(t *testing.T) {
 			size:    0,
 			err:     things.ErrUnauthorizedAccess,
 		},
+		"list things by non-existent channel with wrong credentials": {
+			key:     token,
+			channel: "non-existent",
+			offset:  0,
+			limit:   10,
+			size:    0,
+			err:     nil,
+		},
 	}
 
 	for desc, tc := range cases {
@@ -582,6 +590,14 @@ func TestListChannelsByThing(t *testing.T) {
 			limit:  0,
 			size:   0,
 			err:    things.ErrUnauthorizedAccess,
+		},
+		"list channels by non-existent thing": {
+			key:    token,
+			thing:  "non-existent",
+			offset: 0,
+			limit:  10,
+			size:   0,
+			err:    nil,
 		},
 	}
 
