@@ -45,7 +45,7 @@ var (
 	}
 	auth              mainflux.ThingsServiceClient
 	logger            log.Logger
-	channelPartRegExp = regexp.MustCompile(`^/channels/([\w\-]+)/messages((/[^/.?]+)*)?(\?.*)?$`)
+	channelPartRegExp = regexp.MustCompile(`^/channels/([\w\-]+)/messages(/[^?]*)?(\?.*)?$`)
 )
 
 // MakeHandler returns http handler with handshake endpoint.
@@ -122,9 +122,25 @@ func parseSubtopic(subtopic string) (string, error) {
 	if err != nil {
 		return "", errMalformedSubtopic
 	}
+
 	subtopic = strings.Replace(subtopic, "/", ".", -1)
-	// channelParts[2] contains the subtopic parts starting with char /
-	subtopic = subtopic[1:]
+
+	elems := strings.Split(subtopic, ".")
+	filteredElems := []string{}
+	for _, elem := range elems {
+		if elem == "" {
+			continue
+		}
+
+		if len(elem) > 1 && (strings.Contains(elem, "*") || strings.Contains(elem, ">")) {
+			return "", errMalformedSubtopic
+		}
+
+		filteredElems = append(filteredElems, elem)
+	}
+
+	subtopic = strings.Join(filteredElems, ".")
+
 	return subtopic, nil
 }
 
