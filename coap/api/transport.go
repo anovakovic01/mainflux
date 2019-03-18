@@ -69,9 +69,9 @@ func MakeCOAPHandler(svc coap.Service, tc mainflux.ThingsServiceClient, l log.Lo
 	pingPeriod = pp
 	r := mux.NewRouter()
 	r.Handle("/channels/{id}/messages", gocoap.FuncHandler(receive(svc))).Methods(gocoap.POST)
-	r.Handle("/channels/{id}/messages/{subtopic:.+}", gocoap.FuncHandler(receive(svc))).Methods(gocoap.POST)
+	r.Handle("/channels/{id}/messages/{subtopic:(/[^/.?]+)+}", gocoap.FuncHandler(receive(svc))).Methods(gocoap.POST)
 	r.Handle("/channels/{id}/messages", gocoap.FuncHandler(observe(svc, responses)))
-	r.Handle("/channels/{id}/messages/{subtopic:.+}", gocoap.FuncHandler(observe(svc, responses)))
+	r.Handle("/channels/{id}/messages/{subtopic:(/[^/.?]+)+}", gocoap.FuncHandler(observe(svc, responses)))
 	r.NotFoundHandler = gocoap.FuncHandler(notFoundHandler)
 
 	return r

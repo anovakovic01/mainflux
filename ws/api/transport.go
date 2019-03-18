@@ -32,7 +32,6 @@ const protocol = "ws"
 
 var (
 	errUnauthorizedAccess = errors.New("missing or invalid credentials provided")
-	errMalformedData      = errors.New("malformed request data")
 	errMalformedSubtopic  = errors.New("malformed subtopic")
 )
 
@@ -46,7 +45,7 @@ var (
 	}
 	auth              mainflux.ThingsServiceClient
 	logger            log.Logger
-	channelPartRegExp = regexp.MustCompile(`^/channels/([\w\-]+)/messages((/[^/?]+)*)?(\?.*)?$`)
+	channelPartRegExp = regexp.MustCompile(`^/channels/([\w\-]+)/messages((/[^/.?]+)*)?(\?.*)?$`)
 )
 
 // MakeHandler returns http handler with handshake endpoint.
@@ -68,10 +67,6 @@ func handshake(svc ws.Service) http.HandlerFunc {
 		sub, err := authorize(r)
 		if err != nil {
 			switch err {
-			case errMalformedData:
-				logger.Warn(fmt.Sprintf("Empty channel id or malformed url"))
-				w.WriteHeader(http.StatusBadRequest)
-				return
 			case things.ErrUnauthorizedAccess:
 				w.WriteHeader(http.StatusForbidden)
 				return
@@ -80,6 +75,20 @@ func handshake(svc ws.Service) http.HandlerFunc {
 				w.WriteHeader(http.StatusServiceUnavailable)
 				return
 			}
+		}
+
+		channelParts := channelPartRegExp.FindStringSubmatch(r.RequestURI)
+		if len(channelParts) < 2 {
+			logger.Warn(fmt.Sprintf("Empty channel id or malformed url"))
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+
+		sub.subtopic, err = parseSubtopic(channelParts[2])
+		if err != nil {
+			logger.Warn(fmt.Sprintf("Empty channel id or malformed url"))
+			w.WriteHeader(http.StatusBadRequest)
+			return
 		}
 
 		// Create new ws connection.
@@ -129,16 +138,7 @@ func authorize(r *http.Request) (subscription, error) {
 		authKey = authKeys[0]
 	}
 
-	channelParts := channelPartRegExp.FindStringSubmatch(r.RequestURI)
-	if len(channelParts) < 2 {
-		return subscription{}, errMalformedData
-	}
-
 	chanID := bone.GetValue(r, "id")
-	subtopic, err := parseSubtopic(channelParts[2])
-	if err != nil {
-		return subscription{}, err
-	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
@@ -153,9 +153,8 @@ func authorize(r *http.Request) (subscription, error) {
 	}
 
 	sub := subscription{
-		pubID:    id.GetValue(),
-		chanID:   chanID,
-		subtopic: subtopic,
+		pubID:  id.GetValue(),
+		chanID: chanID,
 	}
 
 	return sub, nil

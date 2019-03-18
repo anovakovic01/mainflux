@@ -36,7 +36,7 @@ var (
 
 var (
 	auth              mainflux.ThingsServiceClient
-	channelPartRegExp = regexp.MustCompile(`^/channels/([\w\-]+)/messages((/[^/?]+)*)?(\?.*)?$`)
+	channelPartRegExp = regexp.MustCompile(`^/channels/([\w\-]+)/messages((/[^/.?]+)*)?(\?.*)?$`)
 )
 
 // MakeHandler returns a HTTP handler for API endpoints.
