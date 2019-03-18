@@ -106,7 +106,7 @@ nats.subscribe('channel.>', {'queue':'mqtts'}, function (msg) {
 function parseTopic(topic) {
     // Topics are in the form `channels/<channel_id>/messages`
     // Subtopic's are in the form `channels/<channel_id>/messages/<subtopic>`
-    return /^channels\/(.+?)\/messages((\/[^/.?]+)*)?$/.exec(topic);
+    return /^channels\/(.+?)\/messages\/?.*$/.exec(topic);
 }
 
 aedes.authorizePublish = function (client, packet, publish) {
@@ -121,9 +121,18 @@ aedes.authorizePublish = function (client, packet, publish) {
             token: client.password,
             chanID: channelId
         },
-        subtopic = channel.length > 2 ? channel[2].split('/').join('.') : '',
-        baseTopic = 'channel.' + channelId,
-        channelTopic = baseTopic + subtopic,
+        // Parse unlimited subtopics
+        baseLength = 3, // First 3 elements which represents the base part of topic.
+        elements = packet.topic.split('/').slice(baseLength),
+        baseTopic = 'channel.' + channelId;
+    // Remove empty elements
+    for (var i = 0; i < elements.length; i++) {
+        if (elements[i] === '') {
+            elements.pop(i);
+        }
+    }
+    var channelTopic = elements.length ? baseTopic + '.' + elements.join('.') : baseTopic,
+
         onAuthorize = function (err, res) {
             var rawMsg;
             if (!err) {
@@ -132,7 +141,7 @@ aedes.authorizePublish = function (client, packet, publish) {
                 rawMsg = message.RawMessage.encode({
                     publisher: client.thingId,
                     channel: channelId,
-                    subtopic: subtopic,
+                    subtopic: elements.join('.'),
                     protocol: 'mqtt',
                     payload: packet.payload
                 });
