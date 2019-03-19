@@ -127,14 +127,14 @@ aedes.authorizePublish = function (client, packet, publish) {
         baseTopic = 'channel.' + channelId;
     // Remove empty elements
     for (var i = 0; i < elements.length; i++) {
-        if (elements[i] === '') {
-            elements.pop(i);
-        }
-
         if (elements[i].length > 1 && (elements[i].includes('*') || elements[i].includes('>'))) {
             logger.warn('invalid subtopic');
             publish(4);
             return;
+        }
+
+        if (elements[i] === '') {
+            elements.pop(i);
         }
     }
     var channelTopic = elements.length ? baseTopic + '.' + elements.join('.') : baseTopic,
@@ -167,9 +167,9 @@ aedes.authorizePublish = function (client, packet, publish) {
 aedes.authorizeSubscribe = function (client, packet, subscribe) {
     var channel = parseTopic(packet.topic);
     if (!channel) {
-      logger.warn('unknown topic');
-      subscribe(4, packet); // Bad username or password
-      return;
+        logger.warn('unknown topic');
+        subscribe(4, packet); // Bad username or password
+        return;
     }
     var channelId = channel[1],
         accessReq = {
@@ -213,9 +213,9 @@ aedes.on('clientDisconnect', function (client) {
 });
 
 aedes.on('clientError', function (client, err) {
-  logger.warn('client error: client: %s, error: %s', client.id, err.message);
+    logger.warn('client error: client: %s, error: %s', client.id, err.message);
 });
 
 aedes.on('connectionError', function (client, err) {
-  logger.warn('client error: client: %s, error: %s', client.id, err.message);
+    logger.warn('client error: client: %s, error: %s', client.id, err.message);
 });
