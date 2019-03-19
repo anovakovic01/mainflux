@@ -123,7 +123,7 @@ aedes.authorizePublish = function (client, packet, publish) {
         },
         // Parse unlimited subtopics
         baseLength = 3, // First 3 elements which represents the base part of topic.
-        elements = packet.topic.split('/').join('.').split('.').slice(baseLength),
+        elements = packet.topic.split('/').slice(baseLength).join('.').split('.'),
         baseTopic = 'channel.' + channelId;
     // Remove empty elements
     for (var i = 0; i < elements.length; i++) {
@@ -138,7 +138,6 @@ aedes.authorizePublish = function (client, packet, publish) {
         }
     }
     var channelTopic = elements.length ? baseTopic + '.' + elements.join('.') : baseTopic,
-
         onAuthorize = function (err, res) {
             var rawMsg;
             if (!err) {
