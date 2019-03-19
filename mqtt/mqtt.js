@@ -123,7 +123,10 @@ aedes.authorizePublish = function (client, packet, publish) {
         },
         // Parse unlimited subtopics
         baseLength = 3, // First 3 elements which represents the base part of topic.
-        elements = packet.topic.split('/').slice(baseLength).join('.').split('.'),
+        isEmpty = function(value) { 
+            return value !== ''; 
+        },
+        elements = packet.topic.split('/').slice(baseLength).join('.').split('.').filter(isEmpty),
         baseTopic = 'channel.' + channelId;
     // Remove empty elements
     for (var i = 0; i < elements.length; i++) {
@@ -131,10 +134,6 @@ aedes.authorizePublish = function (client, packet, publish) {
             logger.warn('invalid subtopic');
             publish(4);
             return;
-        }
-
-        if (elements[i] === '') {
-            elements.pop(i);
         }
     }
     var channelTopic = elements.length ? baseTopic + '.' + elements.join('.') : baseTopic,
