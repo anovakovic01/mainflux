@@ -165,7 +165,7 @@ func encodeResponse(_ context.Context, w http.ResponseWriter, response interface
 
 func encodeError(_ context.Context, err error, w http.ResponseWriter) {
 	switch err {
-	case errMalformedData:
+	case errMalformedData, errMalformedSubtopic:
 		w.WriteHeader(http.StatusBadRequest)
 	case things.ErrUnauthorizedAccess:
 		w.WriteHeader(http.StatusForbidden)
