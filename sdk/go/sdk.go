@@ -100,9 +100,9 @@ type ThingsPage struct {
 
 // Channel represents mainflux channel.
 type Channel struct {
-	ID       string `json:"id,omitempty"`
-	Name     string `json:"name"`
-	Metadata string `json:"metadata,omitempty"`
+	ID       string                 `json:"id,omitempty"`
+	Name     string                 `json:"name"`
+	Metadata map[string]interface{} `json:"metadata,omitempty"`
 }
 
 // ChannelsPage contains list of channels in a page with proper metadata.
