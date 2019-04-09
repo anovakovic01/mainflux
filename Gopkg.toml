@@ -112,8 +112,8 @@
   version = "v6.15.0"
 
 [[constraint]]
-  name = "github.com/mongodb/mongo-go-driver"
-  version = "~v1.0.0"
+  name = "go.mongodb.org/mongo-driver"
+  version = "~1.0.0"
 
 [prune]
   go-tests = true

@@ -22,7 +22,8 @@ import (
 	"github.com/mainflux/mainflux"
 
 	log "github.com/mainflux/mainflux/logger"
-	"github.com/mongodb/mongo-go-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 const (
@@ -46,7 +47,7 @@ var (
 )
 
 func TestReadAll(t *testing.T) {
-	client, err := mongo.Connect(context.Background(), addr, nil)
+	client, err := mongo.Connect(context.Background(), options.Client().ApplyURI(addr))
 	require.Nil(t, err, fmt.Sprintf("Creating new MongoDB client expected to succeed: %s.\n", err))
 
 	db := client.Database(testDB)
