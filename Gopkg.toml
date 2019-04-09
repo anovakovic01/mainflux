@@ -86,9 +86,6 @@
   name = "github.com/influxdata/influxdb"
   version = "1.6.4"
 
-[[constraint]]
-  name = "github.com/mongodb/mongo-go-driver"
-  version = "0.0.5"
 
 [[constraint]]
   name = "github.com/gocql/gocql"
@@ -113,6 +110,10 @@
 [[constraint]]
   name = "github.com/go-redis/redis"
   version = "v6.15.0"
+
+[[constraint]]
+  name = "github.com/mongodb/mongo-go-driver"
+  version = "~v1.0.0"
 
 [prune]
   go-tests = true
