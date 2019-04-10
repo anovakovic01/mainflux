@@ -111,10 +111,10 @@ func (cr channelRepository) RetrieveByID(owner, id string) (things.Channel, erro
 func (cr channelRepository) RetrieveAll(owner string, offset, limit uint64) things.ChannelsPage {
 	q := `SELECT id, name, metadata FROM channels WHERE owner = :owner ORDER BY id LIMIT :limit OFFSET :offset;`
 
-	params := queryParams{
-		Owner:  owner,
-		Limit:  limit,
-		Offset: offset,
+	params := map[string]interface{}{
+		"owner":  owner,
+		"limit":  limit,
+		"offset": offset,
 	}
 	rows, err := cr.db.NamedQuery(q, params)
 	if err != nil {
@@ -169,11 +169,11 @@ func (cr channelRepository) RetrieveByThing(owner, thing string, offset, limit u
 		  LIMIT :limit
 		  OFFSET :offset`
 
-	params := queryParams{
-		Owner:  owner,
-		Thing:  thing,
-		Limit:  limit,
-		Offset: offset,
+	params := map[string]interface{}{
+		"owner":  owner,
+		"thing":  thing,
+		"limit":  limit,
+		"offset": offset,
 	}
 
 	rows, err := cr.db.NamedQuery(q, params)

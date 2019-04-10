@@ -122,10 +122,10 @@ func (tr thingRepository) RetrieveAll(owner string, offset, limit uint64) things
 	q := `SELECT id, name, type, key, metadata FROM things 
 	      WHERE owner = :owner ORDER BY id LIMIT :limit OFFSET :offset;`
 
-	params := queryParams{
-		Owner:  owner,
-		Limit:  limit,
-		Offset: offset,
+	params := map[string]interface{}{
+		"owner":  owner,
+		"limit":  limit,
+		"offset": offset,
 	}
 
 	rows, err := tr.db.NamedQuery(q, params)
@@ -182,11 +182,11 @@ func (tr thingRepository) RetrieveByChannel(owner, channel string, offset, limit
 		  LIMIT :limit
 		  OFFSET :offset;`
 
-	params := queryParams{
-		Owner:   owner,
-		Channel: channel,
-		Limit:   limit,
-		Offset:  offset,
+	params := map[string]interface{}{
+		"owner":   owner,
+		"channel": channel,
+		"limit":   limit,
+		"offset":  offset,
 	}
 
 	rows, err := tr.db.NamedQuery(q, params)
@@ -284,12 +284,4 @@ func toThing(dbth dbThing) (things.Thing, error) {
 		Key:      dbth.Key,
 		Metadata: metadata,
 	}, nil
-}
-
-type queryParams struct {
-	Owner   string `db:"owner"`
-	Thing   string `db:"thing"`
-	Channel string `db:"channel"`
-	Limit   uint64 `db:"limit"`
-	Offset  uint64 `db:"offset"`
 }
