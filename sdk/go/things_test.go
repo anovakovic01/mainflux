@@ -34,7 +34,8 @@ const (
 )
 
 var (
-	thing      = sdk.Thing{ID: "1", Type: "device", Name: "test_device", Metadata: "test_metadata"}
+	metadata   = map[string]interface{}{"meta": "data"}
+	thing      = sdk.Thing{ID: "1", Type: "device", Name: "test_device", Metadata: metadata}
 	emptyThing = sdk.Thing{}
 )
 
@@ -189,7 +190,7 @@ func TestThings(t *testing.T) {
 	mainfluxSDK := sdk.NewSDK(sdkConf)
 	for i := 1; i < 101; i++ {
 
-		th := sdk.Thing{ID: strconv.Itoa(i), Type: "device", Name: "test_device", Metadata: "test_metadata"}
+		th := sdk.Thing{ID: strconv.Itoa(i), Type: "device", Name: "test_device", Metadata: metadata}
 		mainfluxSDK.CreateThing(th, token)
 		th.Key = fmt.Sprintf("%s%012d", keyPrefix, 2*i)
 		things = append(things, th)
@@ -288,7 +289,7 @@ func TestThingsByChannel(t *testing.T) {
 	require.Nil(t, err, fmt.Sprintf("unexpected error: %s", err))
 
 	for i := 1; i < 101; i++ {
-		th := sdk.Thing{Type: "device", Name: "test_device", Metadata: "test_metadata"}
+		th := sdk.Thing{Type: "device", Name: "test_device", Metadata: metadata}
 		tid, err := mainfluxSDK.CreateThing(th, token)
 		require.Nil(t, err, fmt.Sprintf("unexpected error: %s", err))
 		th.ID = tid
@@ -408,7 +409,7 @@ func TestUpdateThing(t *testing.T) {
 				ID:       id,
 				Type:     "app",
 				Name:     "test_app",
-				Metadata: "test_metadata2",
+				Metadata: map[string]interface{}{"meta": "data2"},
 			},
 			token: token,
 			err:   nil,
@@ -419,7 +420,7 @@ func TestUpdateThing(t *testing.T) {
 				ID:       "0",
 				Type:     "device",
 				Name:     "test_device",
-				Metadata: "test_metadata",
+				Metadata: metadata,
 			},
 			token: token,
 			err:   sdk.ErrNotFound,
@@ -430,7 +431,7 @@ func TestUpdateThing(t *testing.T) {
 				ID:       "",
 				Type:     "device",
 				Name:     "test_device",
-				Metadata: "test_metadata",
+				Metadata: metadata,
 			},
 			token: token,
 			err:   sdk.ErrInvalidArgs,
@@ -441,7 +442,7 @@ func TestUpdateThing(t *testing.T) {
 				ID:       id,
 				Type:     "app",
 				Name:     "test_app",
-				Metadata: "test_metadata2",
+				Metadata: map[string]interface{}{"meta": "data2"},
 			},
 			token: wrongValue,
 			err:   sdk.ErrUnauthorized,
@@ -452,7 +453,7 @@ func TestUpdateThing(t *testing.T) {
 				ID:       id,
 				Type:     "app",
 				Name:     "test_app",
-				Metadata: "test_metadata2",
+				Metadata: map[string]interface{}{"meta": "data2"},
 			},
 			token: "",
 			err:   sdk.ErrUnauthorized,
