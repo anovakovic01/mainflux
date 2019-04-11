@@ -35,6 +35,7 @@ const (
 
 var (
 	metadata   = map[string]interface{}{"meta": "data"}
+	metadata2  = map[string]interface{}{"meta": "data2"}
 	thing      = sdk.Thing{ID: "1", Type: "device", Name: "test_device", Metadata: metadata}
 	emptyThing = sdk.Thing{}
 )
@@ -409,7 +410,7 @@ func TestUpdateThing(t *testing.T) {
 				ID:       id,
 				Type:     "app",
 				Name:     "test_app",
-				Metadata: map[string]interface{}{"meta": "data2"},
+				Metadata: metadata2,
 			},
 			token: token,
 			err:   nil,
@@ -442,7 +443,7 @@ func TestUpdateThing(t *testing.T) {
 				ID:       id,
 				Type:     "app",
 				Name:     "test_app",
-				Metadata: map[string]interface{}{"meta": "data2"},
+				Metadata: metadata2,
 			},
 			token: wrongValue,
 			err:   sdk.ErrUnauthorized,
@@ -453,7 +454,7 @@ func TestUpdateThing(t *testing.T) {
 				ID:       id,
 				Type:     "app",
 				Name:     "test_app",
-				Metadata: map[string]interface{}{"meta": "data2"},
+				Metadata: metadata2,
 			},
 			token: "",
 			err:   sdk.ErrUnauthorized,
