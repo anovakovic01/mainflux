@@ -76,7 +76,7 @@ The lora-adapter uses the matadata of provision events emitted by Mainflux syste
     "lora": {
       "devEUI": "<device EUI>"
     }
-  }"
+  }
 }
 ```
 
