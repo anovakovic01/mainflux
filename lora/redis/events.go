@@ -35,5 +35,5 @@ type removeChannelEvent struct {
 }
 
 type channelMetadata struct {
-	AppID string `json:"AppID"`
+	AppID string `json:"appID"`
 }
