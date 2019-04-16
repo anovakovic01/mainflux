@@ -284,7 +284,7 @@ from Redis Stream named `mainflux.things`.
 
 #### Thing create event
 
-Whenever thing is created, `things` service will generate new create event. This 
+Whenever thing is created, `things` service will generate new `create` event. This 
 event will have the following format:
 ```
 1) "1555334740911-0"
@@ -308,7 +308,7 @@ If you want to extract `metadata` field from this event, you'll have to read it 
 string first, and then you can deserialize it to some structured format.
 
 #### Thing update event
-Whenever thing instance is updated, `things` service will generate new update event.
+Whenever thing instance is updated, `things` service will generate new `update` event.
 This event will have the following format:
 ```
 1) "1555336161544-0"
@@ -326,7 +326,7 @@ update endpoint.
 
 #### Thing remove event
 Whenever thing instance is removed from the system, `things` service will generate and
-publish new remove event. This event will have the following format:
+publish new `remove` event. This event will have the following format:
 ```
 1) 1) "1555339313003-0"
 2) 1) "id"
@@ -337,7 +337,7 @@ publish new remove event. This event will have the following format:
 
 #### Channel create event
 Whenever channel instance is created, `things` service will generate and publish new
-create event. This event will have the following format:
+`create` event. This event will have the following format:
 ```
 1) "1555334740918-0"
 2) 1) "id"
@@ -352,7 +352,7 @@ create event. This event will have the following format:
 
 #### Channel update event
 Whenever channel instance is updated, `things` service will generate and publish new
-update event. This event will have the following format:
+`update` event. This event will have the following format:
 ```
 1) "1555338870341-0"
 2) 1) "name"
@@ -367,7 +367,7 @@ update channel endpoint.
 
 #### Channel remove event
 Whenever channel instance is removed from the system, `things` service will generate and
-publish new remove event. This event will have the following format:
+publish new `remove` event. This event will have the following format:
 ```
 1) 1) "1555339429661-0"
 2) 1) "id"
@@ -378,7 +378,7 @@ publish new remove event. This event will have the following format:
 
 #### Connect thing to a channel event
 Whenever thing is connected to a channel on `things` service, `things` service will
-generate and publish new connect event. This event will have the following format:
+generate and publish new `connect` event. This event will have the following format:
 ```
 1) "1555334740920-0"
 2) 1) "chan_id"
@@ -391,7 +391,7 @@ generate and publish new connect event. This event will have the following forma
 
 #### Disconnect thing from a channel event
 Whenever thing is disconnected from a channel on `things` service, `things` service
-will generate and publish new disconnect event. This event will have the following
+will generate and publish new `disconnect` event. This event will have the following
 format:
 ```
 1) "1555334740920-0"
@@ -425,7 +425,7 @@ from Redis Stream named `mainflux.bootstrap`.
 
 #### Configuration create event
 Whenever configuration is created, `bootstrap` service will generate and publish
-new create event. This event will have the following format:
+new `create` event. This event will have the following format:
 ```
 1) "1555404899581-0"
 2)  1) "owner"
@@ -448,7 +448,7 @@ new create event. This event will have the following format:
 
 #### Configuration update event
 Whenever configuration is updated, `bootstrap` service will generate and publish
-new create event. This event will have the following format:
+new `update` event. This event will have the following format:
 ```
 1) "1555405104368-0"
 2)  1) "content"
@@ -465,7 +465,7 @@ new create event. This event will have the following format:
 
 #### Configuration remove event
 Whenever configuration is removed, `bootstrap` service will generate and publish
-new remove event. This event will have the following format:
+new `remove` event. This event will have the following format:
 ```
 1) "1555405464328-0"
 2) 1) "id"
@@ -478,7 +478,7 @@ new remove event. This event will have the following format:
 
 #### Thing bootstrap event
 Whenever thing is bootstrapped, `bootstrap` service will generate and publish
-new bootstrap event. This event will have the following format:
+new `bootstrap` event. This event will have the following format:
 ```
 1) "1555405173785-0"
 2) 1) "externalID"
@@ -493,7 +493,7 @@ new bootstrap event. This event will have the following format:
 
 #### Thing change state event
 Whenever thing's state changes, `bootstrap` service will generate and publish
-new change state event. This event will have the following format:
+new `change state` event. This event will have the following format:
 ```
 1) "1555405294806-0"
 2) 1) "id"
@@ -508,7 +508,7 @@ new change state event. This event will have the following format:
 
 #### Thing update connections event
 Whenever thing's list of connections is updated, `bootstrap` service will generate
-and publish new update connections event. This event will have the following format:
+and publish new `update connections` event. This event will have the following format:
 ```
 1) "1555405373360-0"
 2) 1) "operation"
