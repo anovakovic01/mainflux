@@ -6,7 +6,7 @@
 'use strict';
 
 var http = require('http'),
-    redis = require("redis"),
+    redis = require('redis'),
     net = require('net'),
     protobuf = require('protocol-buffers'),
     websocket = require('websocket-stream'),
@@ -76,6 +76,10 @@ logging({
 });
 
 logger.level(config.log_level);
+
+esclient.on('error', function(err) {
+    logger.warn('error on redis connection: %s', err.message);
+});
 
 // MQTT over WebSocket
 function startWs() {
@@ -183,7 +187,7 @@ aedes.authorizeSubscribe = function (client, packet, subscribe) {
                 logger.info('authorized subscribe');
                 subscribe(null, packet);
             } else {
-                logger.warn('unauthorized subscribe: %s', err);
+                logger.warn('unauthorized subscribe: %s', err.message);
                 subscribe(4, packet); // Bad username or password
             }
         };
@@ -222,6 +226,18 @@ aedes.on('clientError', function (client, err) {
 
 aedes.on('connectionError', function (client, err) {
     logger.warn('client error: client: %s, error: %s', client.id, err.message);
+});
+
+aedes.on('error', function(err) {
+    logger.warn('aedes error: %s', err.message);
+});
+
+mqRedis.state.on('error', function(err) {
+    logger.warn('redis mq error: %s', err.message);
+});
+
+aedesRedis._db.on('error', function(err) {
+    logger.warn('aedes persistence redis error: %s', err.message);
 });
 
 function publishConnEvent(id, type) {
