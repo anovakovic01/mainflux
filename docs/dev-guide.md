@@ -257,17 +257,19 @@ Please assure that MQTT microservice has `node_modules` installed, as explained 
 > N.B. `make rundev` actually calls helper script `scripts/run.sh`, so you can inspect this script for the details.
 
 ## Events
-In order to be easly integratable system, Mainflux is using [Redis Streams](https://redis.io/topics/streams-intro) as event log for event sourcing. Services that are publishing events to Redis Streams are `things` service, and `bootstrap` service, and `mqtt` adapter.
+In order to be easily integratable system, Mainflux is using [Redis Streams](https://redis.io/topics/streams-intro) 
+as an event log for event sourcing. Services that are publishing events to Redis Streams 
+are `things` service, `bootstrap` service, and `mqtt` adapter.
 
 ### Things Service
-For every operation that has side effects (that is chaning service state) `things` 
+For every operation that has side effects (that is changing service state) `things` 
 service will generate new event and publish it to Redis Stream called `mainflux.things`. 
-Every event has it's own event ID that is automatically generated and `operation` 
-field that can have on of the following values:
+Every event has its own event ID that is automatically generated and `operation` 
+field that can have one of the following values:
 - `thing.create` for thing creation,
 - `thing.update` for thing update,
 - `thing.remove` for thing removal,
-- `thing.connect` for connecting thing to a channel,
+- `thing.connect` for connecting a thing to a channel,
 - `thing.disconnect` for disconnecting thing from a channel,
 - `channel.create` for channel creation,
 - `channel.update` for channel update,
@@ -402,7 +404,7 @@ format:
 ```
 
 **Note:** Every one of these events will omit fields that were not used or are not 
-relevant for specific operation. Also, field ordering is not guarantied, so DO NOT 
+relevant for specific operation. Also, field ordering is not guaranteed, so DO NOT 
 rely on it.
 
 ### Bootstrap Service
@@ -524,7 +526,7 @@ Instead of using heartbeat to know when client is connected through MQTT adapter
 can fetch events from Redis Streams that MQTT adapter publishes. MQTT adapter
 publishes events every time client connects and disconnects to stream named `mainflux.mqtt`.
 
-Events that are comming from MQTT adapter have following field:
+Events that are coming from MQTT adapter have following field:
 - `thing_id` ID of a thing that has connected to MQTT adapter,
 - `timestamp` is in Epoch UNIX Time Stamp format,
 - `event_type` can have two possible values, connect and disconnect,
