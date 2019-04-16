@@ -321,7 +321,7 @@ This event will have the following format:
    7) "type"
    8) "device"
 ```
-Note that thing update event will contain only those field that were updated using
+Note that thing update event will contain only those fields that were updated using
 update endpoint.
 
 #### Thing remove event
@@ -526,7 +526,7 @@ Instead of using heartbeat to know when client is connected through MQTT adapter
 can fetch events from Redis Streams that MQTT adapter publishes. MQTT adapter
 publishes events every time client connects and disconnects to stream named `mainflux.mqtt`.
 
-Events that are coming from MQTT adapter have following field:
+Events that are coming from MQTT adapter have following fields:
 - `thing_id` ID of a thing that has connected to MQTT adapter,
 - `timestamp` is in Epoch UNIX Time Stamp format,
 - `event_type` can have two possible values, connect and disconnect,
