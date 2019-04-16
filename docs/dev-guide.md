@@ -403,7 +403,7 @@ format:
    6) "thing.disconnect"
 ```
 
-**Note:** Every one of these events will omit fields that were not used or are not 
+> **Note:** Every one of these events will omit fields that were not used or are not 
 relevant for specific operation. Also, field ordering is not guaranteed, so DO NOT 
 rely on it.
 
