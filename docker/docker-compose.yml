@@ -184,6 +184,8 @@ services:
     restart: on-failure
     networks:
       - mainflux-base-net
+    ports:
+      - 6379
 
   mqtt-redis:
     image: redis:5.0-alpine
