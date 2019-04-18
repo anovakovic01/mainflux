@@ -154,7 +154,7 @@ func decodeThingCreation(_ context.Context, r *http.Request) (interface{}, error
 		return nil, errUnsupportedContentType
 	}
 
-	req := addThingReq{key: r.Header.Get("Authorization")}
+	req := addThingReq{token: r.Header.Get("Authorization")}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		return nil, err
 	}
@@ -168,8 +168,8 @@ func decodeThingUpdate(_ context.Context, r *http.Request) (interface{}, error) 
 	}
 
 	req := updateThingReq{
-		key: r.Header.Get("Authorization"),
-		id:  bone.GetValue(r, "id"),
+		token: r.Header.Get("Authorization"),
+		id:    bone.GetValue(r, "id"),
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		return nil, err
@@ -183,7 +183,7 @@ func decodeChannelCreation(_ context.Context, r *http.Request) (interface{}, err
 		return nil, errUnsupportedContentType
 	}
 
-	req := createChannelReq{key: r.Header.Get("Authorization")}
+	req := createChannelReq{token: r.Header.Get("Authorization")}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		return nil, err
 	}
@@ -197,8 +197,8 @@ func decodeChannelUpdate(_ context.Context, r *http.Request) (interface{}, error
 	}
 
 	req := updateChannelReq{
-		key: r.Header.Get("Authorization"),
-		id:  bone.GetValue(r, "id"),
+		token: r.Header.Get("Authorization"),
+		id:    bone.GetValue(r, "id"),
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		return nil, err
@@ -209,8 +209,8 @@ func decodeChannelUpdate(_ context.Context, r *http.Request) (interface{}, error
 
 func decodeView(_ context.Context, r *http.Request) (interface{}, error) {
 	req := viewResourceReq{
-		key: r.Header.Get("Authorization"),
-		id:  bone.GetValue(r, "id"),
+		token: r.Header.Get("Authorization"),
+		id:    bone.GetValue(r, "id"),
 	}
 
 	return req, nil
@@ -228,7 +228,7 @@ func decodeList(_ context.Context, r *http.Request) (interface{}, error) {
 	}
 
 	req := listResourcesReq{
-		key:    r.Header.Get("Authorization"),
+		token:  r.Header.Get("Authorization"),
 		offset: o,
 		limit:  l,
 	}
@@ -248,7 +248,7 @@ func decodeListByConnection(_ context.Context, r *http.Request) (interface{}, er
 	}
 
 	req := listByConnectionReq{
-		key:    r.Header.Get("Authorization"),
+		token:  r.Header.Get("Authorization"),
 		id:     bone.GetValue(r, "id"),
 		offset: o,
 		limit:  l,
@@ -259,7 +259,7 @@ func decodeListByConnection(_ context.Context, r *http.Request) (interface{}, er
 
 func decodeConnection(_ context.Context, r *http.Request) (interface{}, error) {
 	req := connectionReq{
-		key:     r.Header.Get("Authorization"),
+		token:   r.Header.Get("Authorization"),
 		chanID:  bone.GetValue(r, "chanId"),
 		thingID: bone.GetValue(r, "thingId"),
 	}

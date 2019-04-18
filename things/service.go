@@ -139,7 +139,10 @@ func (ts *thingsService) AddThing(key string, thing Thing) (Thing, error) {
 
 	thing.ID = ts.idp.ID()
 	thing.Owner = res.GetValue()
-	thing.Key = ts.idp.ID()
+
+	if thing.Key == "" {
+		thing.Key = ts.idp.ID()
+	}
 
 	id, err := ts.things.Save(thing)
 	if err != nil {
