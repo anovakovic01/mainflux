@@ -93,6 +93,54 @@ func TestUpdateThingReqValidation(t *testing.T) {
 	}
 }
 
+func TestUpdateKeyReqValidation(t *testing.T) {
+	token := uuid.NewV4().String()
+	thing := things.Thing{ID: "1", Key: "key"}
+
+	cases := map[string]struct {
+		token string
+		id    string
+		key   string
+		err   error
+	}{
+		"valid key update request": {
+			token: token,
+			id:    thing.ID,
+			key:   thing.Key,
+			err:   nil,
+		},
+		"missing token": {
+			token: "",
+			id:    thing.ID,
+			key:   thing.Key,
+			err:   things.ErrUnauthorizedAccess,
+		},
+		"empty thing id": {
+			token: token,
+			id:    "",
+			key:   thing.Key,
+			err:   things.ErrMalformedEntity,
+		},
+		"empty key": {
+			token: token,
+			id:    thing.ID,
+			key:   "",
+			err:   things.ErrMalformedEntity,
+		},
+	}
+
+	for desc, tc := range cases {
+		req := updateKeyReq{
+			token: tc.token,
+			id:    tc.id,
+			Key:   tc.key,
+		}
+
+		err := req.validate()
+		assert.Equal(t, tc.err, err, fmt.Sprintf("%s: expected %s got %s\n", desc, tc.err, err))
+	}
+}
+
 func TestCreateChannelReqValidation(t *testing.T) {
 	channel := things.Channel{}
 	token := uuid.NewV4().String()

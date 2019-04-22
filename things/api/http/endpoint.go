@@ -63,6 +63,23 @@ func updateThingEndpoint(svc things.Service) endpoint.Endpoint {
 	}
 }
 
+func updateKeyEndpoint(svc things.Service) endpoint.Endpoint {
+	return func(_ context.Context, request interface{}) (interface{}, error) {
+		req := request.(updateKeyReq)
+
+		if err := req.validate(); err != nil {
+			return nil, err
+		}
+
+		if err := svc.UpdateKey(req.token, req.id, req.Key); err != nil {
+			return nil, err
+		}
+
+		res := thingRes{id: req.id, created: false}
+		return res, nil
+	}
+}
+
 func viewThingEndpoint(svc things.Service) endpoint.Endpoint {
 	return func(_ context.Context, request interface{}) (interface{}, error) {
 		req := request.(viewResourceReq)

@@ -52,6 +52,13 @@ func MakeHandler(svc things.Service) http.Handler {
 		opts...,
 	))
 
+	r.Patch("/things/:id/key", kithttp.NewServer(
+		updateKeyEndpoint(svc),
+		decodeKeyUpdate,
+		encodeResponse,
+		opts...,
+	))
+
 	r.Put("/things/:id", kithttp.NewServer(
 		updateThingEndpoint(svc),
 		decodeThingUpdate,
@@ -168,6 +175,22 @@ func decodeThingUpdate(_ context.Context, r *http.Request) (interface{}, error) 
 	}
 
 	req := updateThingReq{
+		token: r.Header.Get("Authorization"),
+		id:    bone.GetValue(r, "id"),
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+func decodeKeyUpdate(_ context.Context, r *http.Request) (interface{}, error) {
+	if !strings.Contains(r.Header.Get("Content-Type"), contentType) {
+		return nil, errUnsupportedContentType
+	}
+
+	req := updateKeyReq{
 		token: r.Header.Get("Authorization"),
 		id:    bone.GetValue(r, "id"),
 	}
@@ -295,6 +318,8 @@ func encodeError(_ context.Context, err error, w http.ResponseWriter) {
 		w.WriteHeader(http.StatusForbidden)
 	case things.ErrNotFound:
 		w.WriteHeader(http.StatusNotFound)
+	case things.ErrConflict:
+		w.WriteHeader(http.StatusConflict)
 	case errUnsupportedContentType:
 		w.WriteHeader(http.StatusUnsupportedMediaType)
 	case errInvalidQueryParams:

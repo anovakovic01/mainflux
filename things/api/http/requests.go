@@ -49,6 +49,24 @@ func (req updateThingReq) validate() error {
 	return nil
 }
 
+type updateKeyReq struct {
+	token string
+	id    string
+	Key   string `json:"key"`
+}
+
+func (req updateKeyReq) validate() error {
+	if req.token == "" {
+		return things.ErrUnauthorizedAccess
+	}
+
+	if req.id == "" || req.Key == "" {
+		return things.ErrMalformedEntity
+	}
+
+	return nil
+}
+
 type createChannelReq struct {
 	token    string
 	Name     string                 `json:"name,omitempty"`
