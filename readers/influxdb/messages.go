@@ -73,7 +73,7 @@ func (repo *influxRepository) ReadAll(chanID string, offset, limit uint64, query
 }
 
 func (repo *influxRepository) count(condition string) (uint64, error) {
-	cmd := fmt.Sprintf(`SELECT COUNT(protocol) FROM messages WHERE %s ORDER BY time DESC`, condition)
+	cmd := fmt.Sprintf(`SELECT COUNT(protocol) FROM messages WHERE %s`, condition)
 	q := influxdata.Query{
 		Command:  cmd,
 		Database: repo.database,
@@ -92,7 +92,6 @@ func (repo *influxRepository) count(condition string) (uint64, error) {
 		len(resp.Results[0].Series[0].Values) < 1 {
 		return 0, nil
 	}
-	fmt.Println(resp.Results[0].Series[0].Columns)
 
 	countIndex := 0
 	for i, col := range resp.Results[0].Series[0].Columns {
