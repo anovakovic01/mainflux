@@ -114,7 +114,7 @@ func TestAddThing(t *testing.T) {
 			req:         data,
 			contentType: contentType,
 			auth:        token,
-			status:      http.StatusConflict,
+			status:      http.StatusUnprocessableEntity,
 			location:    "",
 		},
 		{
@@ -327,7 +327,7 @@ func TestUpdateKey(t *testing.T) {
 			id:          sth.ID,
 			contentType: contentType,
 			auth:        token,
-			status:      http.StatusConflict,
+			status:      http.StatusUnprocessableEntity,
 		},
 		{
 			desc:        "update key with empty JSON request",
