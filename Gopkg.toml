@@ -115,6 +115,10 @@
   name = "go.mongodb.org/mongo-driver"
   version = "~1.0.0"
 
+[[constraint]]
+  name = "gopkg.in/yaml.v2"
+  version = "~v2.2.0"
+
 [prune]
   go-tests = true
   unused-packages = true

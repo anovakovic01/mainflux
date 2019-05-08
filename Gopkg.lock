@@ -754,12 +754,12 @@
   version = "v3.3.2"
 
 [[projects]]
-  branch = "v3"
-  digest = "1:e11e6a71536a7120d56ea0c0cbfb4cf2b24b328f3982e8d03ce6939f7fe8b14c"
-  name = "gopkg.in/yaml.v3"
+  digest = "1:4d2e5a73dc1500038e504a8d78b986630e3626dc027bc030ba5c75da257cdb96"
+  name = "gopkg.in/yaml.v2"
   packages = ["."]
   pruneopts = "UT"
-  revision = "55513cacd4ae8b250e3a9084ab9d8c407b1ed618"
+  revision = "51d6538a90f86fe93ac480b35f37b2be17fef232"
+  version = "v2.2.2"
 
 [solve-meta]
   analyzer-name = "dep"
@@ -808,7 +808,7 @@
     "google.golang.org/grpc/credentials",
     "google.golang.org/grpc/status",
     "gopkg.in/ory-am/dockertest.v3",
-    "gopkg.in/yaml.v3",
+    "gopkg.in/yaml.v2",
   ]
   solver-name = "gps-cdcl"
   solver-version = 1

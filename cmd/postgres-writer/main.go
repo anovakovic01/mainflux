@@ -25,7 +25,7 @@ import (
 	"github.com/mainflux/mainflux/writers/postgres"
 	nats "github.com/nats-io/go-nats"
 	stdprometheus "github.com/prometheus/client_golang/prometheus"
-	yaml "gopkg.in/yaml.v3"
+	yaml "gopkg.in/yaml.v2"
 )
 
 const (
