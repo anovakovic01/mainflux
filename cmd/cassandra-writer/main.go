@@ -9,6 +9,7 @@ package main
 
 import (
 	"fmt"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
@@ -23,25 +24,28 @@ import (
 	"github.com/mainflux/mainflux/writers"
 	"github.com/mainflux/mainflux/writers/api"
 	"github.com/mainflux/mainflux/writers/cassandra"
-	"github.com/nats-io/go-nats"
+	nats "github.com/nats-io/go-nats"
 	stdprometheus "github.com/prometheus/client_golang/prometheus"
+	yaml "gopkg.in/yaml.v3"
 )
 
 const (
 	svcName = "cassandra-writer"
 	sep     = ","
 
-	defNatsURL  = nats.DefaultURL
-	defLogLevel = "error"
-	defPort     = "8180"
-	defCluster  = "127.0.0.1"
-	defKeyspace = "mainflux"
+	defNatsURL     = nats.DefaultURL
+	defLogLevel    = "error"
+	defPort        = "8180"
+	defCluster     = "127.0.0.1"
+	defKeyspace    = "mainflux"
+	defChanCfgPath = "/config/channels.yaml"
 
-	envNatsURL  = "MF_NATS_URL"
-	envLogLevel = "MF_CASSANDRA_WRITER_LOG_LEVEL"
-	envPort     = "MF_CASSANDRA_WRITER_PORT"
-	envCluster  = "MF_CASSANDRA_WRITER_DB_CLUSTER"
-	envKeyspace = "MF_CASSANDRA_WRITER_DB_KEYSPACE"
+	envNatsURL     = "MF_NATS_URL"
+	envLogLevel    = "MF_CASSANDRA_WRITER_LOG_LEVEL"
+	envPort        = "MF_CASSANDRA_WRITER_PORT"
+	envCluster     = "MF_CASSANDRA_WRITER_DB_CLUSTER"
+	envKeyspace    = "MF_CASSANDRA_WRITER_DB_KEYSPACE"
+	envChanCfgPath = "MF_CASSANDRA_WRITER_CHANNELS_CONFIG"
 )
 
 type config struct {
@@ -50,6 +54,11 @@ type config struct {
 	port     string
 	cluster  string
 	keyspace string
+	chanCfg  chanListConfig
+}
+
+type chanListConfig struct {
+	Channels []string `yaml:"channels,flow"`
 }
 
 func main() {
@@ -67,7 +76,7 @@ func main() {
 	defer session.Close()
 
 	repo := newService(session, logger)
-	if err := writers.Start(nc, repo, svcName, logger); err != nil {
+	if err := writers.Start(nc, repo, svcName, cfg.chanCfg.Channels, logger); err != nil {
 		logger.Error(fmt.Sprintf("Failed to create Cassandra writer: %s", err))
 	}
 
@@ -86,12 +95,32 @@ func main() {
 }
 
 func loadConfig() config {
+	chanCfgPath := mainflux.Env(envChanCfgPath, defChanCfgPath)
 	return config{
 		natsURL:  mainflux.Env(envNatsURL, defNatsURL),
 		logLevel: mainflux.Env(envLogLevel, defLogLevel),
 		port:     mainflux.Env(envPort, defPort),
 		cluster:  mainflux.Env(envCluster, defCluster),
 		keyspace: mainflux.Env(envKeyspace, defKeyspace),
+		chanCfg:  loadChansConfig(chanCfgPath),
+	}
+}
+
+func loadChansConfig(chanConfigPath string) chanListConfig {
+	data, err := ioutil.ReadFile(chanConfigPath)
+	if err != nil {
+		log.Fatal(err.Error())
+		os.Exit(1)
+	}
+
+	var cfg chanListConfig
+	if err := yaml.Unmarshal(data, &cfg); err != nil {
+		log.Fatal(err.Error())
+		os.Exit(1)
+	}
+
+	return chanListConfig{
+		Channels: cfg.Channels,
 	}
 }
 

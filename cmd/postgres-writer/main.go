@@ -9,6 +9,7 @@ package main
 
 import (
 	"fmt"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
@@ -22,8 +23,9 @@ import (
 	"github.com/mainflux/mainflux/writers"
 	"github.com/mainflux/mainflux/writers/api"
 	"github.com/mainflux/mainflux/writers/postgres"
-	"github.com/nats-io/go-nats"
+	nats "github.com/nats-io/go-nats"
 	stdprometheus "github.com/prometheus/client_golang/prometheus"
+	yaml "gopkg.in/yaml.v3"
 )
 
 const (
@@ -42,6 +44,7 @@ const (
 	defDBSSLCert     = ""
 	defDBSSLKey      = ""
 	defDBSSLRootCert = ""
+	defChanCfgPath   = "/config/channels.yaml"
 
 	envNatsURL       = "MF_NATS_URL"
 	envLogLevel      = "MF_POSTGRES_WRITER_LOG_LEVEL"
@@ -55,6 +58,7 @@ const (
 	envDBSSLCert     = "MF_POSTGRES_WRITER_DB_SSL_CERT"
 	envDBSSLKey      = "MF_POSTGRES_WRITER_DB_SSL_KEY"
 	envDBSSLRootCert = "MF_POSTGRES_WRITER_DB_SSL_ROOT_CERT"
+	envChanCfgPath   = "MF_POSTGRES_WRITER_CHANNELS_CONFIG"
 )
 
 type config struct {
@@ -62,6 +66,11 @@ type config struct {
 	logLevel string
 	port     string
 	dbConfig postgres.Config
+	chanCfg  chanListConfig
+}
+
+type chanListConfig struct {
+	Channels []string `yaml:"channels,flow"`
 }
 
 func main() {
@@ -79,7 +88,7 @@ func main() {
 	defer db.Close()
 
 	repo := newService(db, logger)
-	if err = writers.Start(nc, repo, svcName, logger); err != nil {
+	if err = writers.Start(nc, repo, svcName, cfg.chanCfg.Channels, logger); err != nil {
 		logger.Error(fmt.Sprintf("Failed to create Postgres writer: %s", err))
 	}
 
@@ -98,6 +107,7 @@ func main() {
 }
 
 func loadConfig() config {
+	chanCfgPath := mainflux.Env(envChanCfgPath, defChanCfgPath)
 	dbConfig := postgres.Config{
 		Host:        mainflux.Env(envDBHost, defDBHost),
 		Port:        mainflux.Env(envDBPort, defDBPort),
@@ -115,6 +125,25 @@ func loadConfig() config {
 		logLevel: mainflux.Env(envLogLevel, defLogLevel),
 		port:     mainflux.Env(envPort, defPort),
 		dbConfig: dbConfig,
+		chanCfg:  loadChansConfig(chanCfgPath),
+	}
+}
+
+func loadChansConfig(chanConfigPath string) chanListConfig {
+	data, err := ioutil.ReadFile(chanConfigPath)
+	if err != nil {
+		log.Fatal(err.Error())
+		os.Exit(1)
+	}
+
+	var cfg chanListConfig
+	if err := yaml.Unmarshal(data, &cfg); err != nil {
+		log.Fatal(err.Error())
+		os.Exit(1)
+	}
+
+	return chanListConfig{
+		Channels: cfg.Channels,
 	}
 }
 

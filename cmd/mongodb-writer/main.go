@@ -10,6 +10,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
@@ -26,62 +27,72 @@ import (
 	stdprometheus "github.com/prometheus/client_golang/prometheus"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
+	yaml "gopkg.in/yaml.v3"
 )
 
 const (
 	svcName = "mongodb-writer"
 
-	defNatsURL  = nats.DefaultURL
-	defLogLevel = "error"
-	defPort     = "8180"
-	defDBName   = "mainflux"
-	defDBHost   = "localhost"
-	defDBPort   = "27017"
+	defNatsURL     = nats.DefaultURL
+	defLogLevel    = "error"
+	defPort        = "8180"
+	defDBName      = "mainflux"
+	defDBHost      = "localhost"
+	defDBPort      = "27017"
+	defChanCfgPath = "/config/channels.yaml"
 
-	envNatsURL  = "MF_NATS_URL"
-	envLogLevel = "MF_MONGO_WRITER_LOG_LEVEL"
-	envPort     = "MF_MONGO_WRITER_PORT"
-	envDBName   = "MF_MONGO_WRITER_DB_NAME"
-	envDBHost   = "MF_MONGO_WRITER_DB_HOST"
-	envDBPort   = "MF_MONGO_WRITER_DB_PORT"
+	envNatsURL     = "MF_NATS_URL"
+	envLogLevel    = "MF_MONGO_WRITER_LOG_LEVEL"
+	envPort        = "MF_MONGO_WRITER_PORT"
+	envDBName      = "MF_MONGO_WRITER_DB_NAME"
+	envDBHost      = "MF_MONGO_WRITER_DB_HOST"
+	envDBPort      = "MF_MONGO_WRITER_DB_PORT"
+	envChanCfgPath = "MF_MONGO_WRITER_CHANNELS_CONFIG"
 )
 
 type config struct {
-	NatsURL  string
-	LogLevel string
-	Port     string
-	DBName   string
-	DBHost   string
-	DBPort   string
+	natsURL  string
+	logLevel string
+	port     string
+	dbName   string
+	dbHost   string
+	dbPort   string
+	chanCfg  chanListConfig
+}
+
+type chanListConfig struct {
+	Channels []string `yaml:"channels,flow"`
 }
 
 func main() {
 	cfg := loadConfigs()
-	logger, err := logger.New(os.Stdout, cfg.LogLevel)
+
+	logger, err := logger.New(os.Stdout, cfg.logLevel)
 	if err != nil {
 		log.Fatalf(err.Error())
 	}
-	nc, err := nats.Connect(cfg.NatsURL)
+
+	nc, err := nats.Connect(cfg.natsURL)
 	if err != nil {
 		logger.Error(fmt.Sprintf("Failed to connect to NATS: %s", err))
 		os.Exit(1)
 	}
 	defer nc.Close()
 
-	addr := fmt.Sprintf("mongodb://%s:%s", cfg.DBHost, cfg.DBPort)
+	addr := fmt.Sprintf("mongodb://%s:%s", cfg.dbHost, cfg.dbPort)
 	client, err := mongo.Connect(context.Background(), options.Client().ApplyURI(addr))
 	if err != nil {
 		logger.Error(fmt.Sprintf("Failed to connect to database: %s", err))
 		os.Exit(1)
 	}
 
-	db := client.Database(cfg.DBName)
+	db := client.Database(cfg.dbName)
 	repo := mongodb.New(db)
 
 	counter, latency := makeMetrics()
 	repo = api.LoggingMiddleware(repo, logger)
 	repo = api.MetricsMiddleware(repo, counter, latency)
-	if err := writers.Start(nc, repo, svcName, logger); err != nil {
+	if err := writers.Start(nc, repo, svcName, cfg.chanCfg.Channels, logger); err != nil {
 		logger.Error(fmt.Sprintf("Failed to start MongoDB writer: %s", err))
 		os.Exit(1)
 	}
@@ -93,20 +104,40 @@ func main() {
 		errs <- fmt.Errorf("%s", <-c)
 	}()
 
-	go startHTTPService(cfg.Port, logger, errs)
+	go startHTTPService(cfg.port, logger, errs)
 
 	err = <-errs
 	logger.Error(fmt.Sprintf("MongoDB writer service terminated: %s", err))
 }
 
 func loadConfigs() config {
+	chanCfgPath := mainflux.Env(envChanCfgPath, defChanCfgPath)
 	return config{
-		NatsURL:  mainflux.Env(envNatsURL, defNatsURL),
-		LogLevel: mainflux.Env(envLogLevel, defLogLevel),
-		Port:     mainflux.Env(envPort, defPort),
-		DBName:   mainflux.Env(envDBName, defDBName),
-		DBHost:   mainflux.Env(envDBHost, defDBHost),
-		DBPort:   mainflux.Env(envDBPort, defDBPort),
+		natsURL:  mainflux.Env(envNatsURL, defNatsURL),
+		logLevel: mainflux.Env(envLogLevel, defLogLevel),
+		port:     mainflux.Env(envPort, defPort),
+		dbName:   mainflux.Env(envDBName, defDBName),
+		dbHost:   mainflux.Env(envDBHost, defDBHost),
+		dbPort:   mainflux.Env(envDBPort, defDBPort),
+		chanCfg:  loadChansConfig(chanCfgPath),
+	}
+}
+
+func loadChansConfig(chanConfigPath string) chanListConfig {
+	data, err := ioutil.ReadFile(chanConfigPath)
+	if err != nil {
+		log.Fatal(err.Error())
+		os.Exit(1)
+	}
+
+	var cfg chanListConfig
+	if err := yaml.Unmarshal(data, &cfg); err != nil {
+		log.Fatal(err.Error())
+		os.Exit(1)
+	}
+
+	return chanListConfig{
+		Channels: cfg.Channels,
 	}
 }
 
