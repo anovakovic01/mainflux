@@ -17,6 +17,7 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/BurntSushi/toml"
 	kitprometheus "github.com/go-kit/kit/metrics/prometheus"
 	"github.com/gocql/gocql"
 	"github.com/mainflux/mainflux"
@@ -26,7 +27,6 @@ import (
 	"github.com/mainflux/mainflux/writers/cassandra"
 	nats "github.com/nats-io/go-nats"
 	stdprometheus "github.com/prometheus/client_golang/prometheus"
-	yaml "gopkg.in/yaml.v2"
 )
 
 const (
@@ -38,7 +38,7 @@ const (
 	defPort        = "8180"
 	defCluster     = "127.0.0.1"
 	defKeyspace    = "mainflux"
-	defChanCfgPath = "/config/channels.yaml"
+	defChanCfgPath = "/config/channels.toml"
 
 	envNatsURL     = "MF_NATS_URL"
 	envLogLevel    = "MF_CASSANDRA_WRITER_LOG_LEVEL"
@@ -54,11 +54,7 @@ type config struct {
 	port     string
 	cluster  string
 	keyspace string
-	chanCfg  chanListConfig
-}
-
-type chanListConfig struct {
-	Channels []string `yaml:"channels,flow"`
+	channels []string
 }
 
 func main() {
@@ -76,7 +72,7 @@ func main() {
 	defer session.Close()
 
 	repo := newService(session, logger)
-	if err := writers.Start(nc, repo, svcName, cfg.chanCfg.Channels, logger); err != nil {
+	if err := writers.Start(nc, repo, svcName, cfg.channels, logger); err != nil {
 		logger.Error(fmt.Sprintf("Failed to create Cassandra writer: %s", err))
 	}
 
@@ -102,26 +98,32 @@ func loadConfig() config {
 		port:     mainflux.Env(envPort, defPort),
 		cluster:  mainflux.Env(envCluster, defCluster),
 		keyspace: mainflux.Env(envKeyspace, defKeyspace),
-		chanCfg:  loadChansConfig(chanCfgPath),
+		channels: loadChansConfig(chanCfgPath),
 	}
 }
 
-func loadChansConfig(chanConfigPath string) chanListConfig {
+type channels struct {
+	List []string `toml:"filter"`
+}
+
+type chanConfig struct {
+	Channels channels `toml:"channels"`
+}
+
+func loadChansConfig(chanConfigPath string) []string {
 	data, err := ioutil.ReadFile(chanConfigPath)
 	if err != nil {
 		log.Fatal(err.Error())
 		os.Exit(1)
 	}
 
-	var cfg chanListConfig
-	if err := yaml.Unmarshal(data, &cfg); err != nil {
+	var chanCfg chanConfig
+	if err := toml.Unmarshal(data, &chanCfg); err != nil {
 		log.Fatal(err.Error())
 		os.Exit(1)
 	}
 
-	return chanListConfig{
-		Channels: cfg.Channels,
-	}
+	return chanCfg.Channels.List
 }
 
 func connectToNATS(url string, logger logger.Logger) *nats.Conn {

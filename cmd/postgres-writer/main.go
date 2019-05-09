@@ -16,6 +16,7 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/BurntSushi/toml"
 	kitprometheus "github.com/go-kit/kit/metrics/prometheus"
 	"github.com/jmoiron/sqlx"
 	"github.com/mainflux/mainflux"
@@ -25,7 +26,6 @@ import (
 	"github.com/mainflux/mainflux/writers/postgres"
 	nats "github.com/nats-io/go-nats"
 	stdprometheus "github.com/prometheus/client_golang/prometheus"
-	yaml "gopkg.in/yaml.v2"
 )
 
 const (
@@ -44,7 +44,7 @@ const (
 	defDBSSLCert     = ""
 	defDBSSLKey      = ""
 	defDBSSLRootCert = ""
-	defChanCfgPath   = "/config/channels.yaml"
+	defChanCfgPath   = "/config/channels.toml"
 
 	envNatsURL       = "MF_NATS_URL"
 	envLogLevel      = "MF_POSTGRES_WRITER_LOG_LEVEL"
@@ -66,11 +66,7 @@ type config struct {
 	logLevel string
 	port     string
 	dbConfig postgres.Config
-	chanCfg  chanListConfig
-}
-
-type chanListConfig struct {
-	Channels []string `yaml:"channels,flow"`
+	channels []string
 }
 
 func main() {
@@ -88,7 +84,7 @@ func main() {
 	defer db.Close()
 
 	repo := newService(db, logger)
-	if err = writers.Start(nc, repo, svcName, cfg.chanCfg.Channels, logger); err != nil {
+	if err = writers.Start(nc, repo, svcName, cfg.channels, logger); err != nil {
 		logger.Error(fmt.Sprintf("Failed to create Postgres writer: %s", err))
 	}
 
@@ -125,26 +121,32 @@ func loadConfig() config {
 		logLevel: mainflux.Env(envLogLevel, defLogLevel),
 		port:     mainflux.Env(envPort, defPort),
 		dbConfig: dbConfig,
-		chanCfg:  loadChansConfig(chanCfgPath),
+		channels: loadChansConfig(chanCfgPath),
 	}
 }
 
-func loadChansConfig(chanConfigPath string) chanListConfig {
+type channels struct {
+	List []string `toml:"filter"`
+}
+
+type chanConfig struct {
+	Channels channels `toml:"channels"`
+}
+
+func loadChansConfig(chanConfigPath string) []string {
 	data, err := ioutil.ReadFile(chanConfigPath)
 	if err != nil {
 		log.Fatal(err.Error())
 		os.Exit(1)
 	}
 
-	var cfg chanListConfig
-	if err := yaml.Unmarshal(data, &cfg); err != nil {
+	var chanCfg chanConfig
+	if err := toml.Unmarshal(data, &chanCfg); err != nil {
 		log.Fatal(err.Error())
 		os.Exit(1)
 	}
 
-	return chanListConfig{
-		Channels: cfg.Channels,
-	}
+	return chanCfg.Channels.List
 }
 
 func connectToNATS(url string, logger logger.Logger) *nats.Conn {

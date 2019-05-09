@@ -50,4 +50,4 @@ services:
     networks:
       - docker_mainflux-base-net
     volumes:
-      - ./channels.yaml:/config/channels.yaml
+      - ./channels.toml:/config/channels.toml
