@@ -16,7 +16,7 @@ import (
 	"github.com/mainflux/mainflux/writers/postgres"
 	"github.com/stretchr/testify/assert"
 
-	uuid "github.com/satori/go.uuid"
+	"github.com/gofrs/uuid"
 )
 
 var (
