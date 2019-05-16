@@ -209,12 +209,12 @@ func connectToDB(dbConfig postgres.Config, logger logger.Logger) *sqlx.DB {
 }
 
 func createUsersClient(cfg config, logger logger.Logger) (mainflux.UsersServiceClient, func() error) {
-	if cfg.singleUserEmail == "" || cfg.singleUserToken == "" {
-		conn := connectToUsers(cfg, logger)
-		return usersapi.NewClient(conn), conn.Close
+	if cfg.singleUserEmail != "" && cfg.singleUserToken != "" {
+		return localusers.NewSingleUserService(cfg.singleUserEmail, cfg.singleUserToken), nil
 	}
 
-	return localusers.NewSingleUserService(cfg.singleUserEmail, cfg.singleUserToken), nil
+	conn := connectToUsers(cfg, logger)
+	return usersapi.NewClient(conn), conn.Close
 }
 
 func connectToUsers(cfg config, logger logger.Logger) *grpc.ClientConn {
