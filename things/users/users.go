@@ -1,3 +1,12 @@
+//
+// Copyright (c) 2019
+// Mainflux
+//
+// SPDX-License-Identifier: Apache-2.0
+//
+
+// Package users contains implementation for users service in
+// single user scenario.
 package users
 
 import (
