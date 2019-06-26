@@ -77,6 +77,8 @@ func handshake(svc ws.Service) http.HandlerFunc {
 			}
 		}
 
+		ct, format := contentType(r)
+
 		channelParts := channelPartRegExp.FindStringSubmatch(r.RequestURI)
 		if len(channelParts) < 2 {
 			logger.Warn(fmt.Sprintf("Empty channel id or malformed url"))
@@ -108,7 +110,7 @@ func handshake(svc ws.Service) http.HandlerFunc {
 		go sub.listen()
 
 		// Start listening for messages from NATS.
-		go sub.broadcast(svc)
+		go sub.broadcast(svc, ct, format)
 	}
 }
 
@@ -176,6 +178,35 @@ func authorize(r *http.Request) (subscription, error) {
 	return sub, nil
 }
 
+func contentType(r *http.Request) (string, string) {
+	ctval := r.Header.Get("Content-Type")
+	if ctval == "" {
+		ctvals := bone.GetQuery(r, "content-type")
+		if len(ctvals) == 0 {
+			return string(mainflux.SenMLJSON), mainflux.Text
+		}
+	}
+
+	suffix := ""
+	switch {
+	case strings.HasSuffix(ctval, mainflux.Binary):
+		suffix = mainflux.Binary
+	case strings.HasSuffix(ctval, mainflux.Text):
+		suffix = mainflux.Text
+	}
+
+	ct := strings.TrimSuffix(ctval, fmt.Sprintf("/%s", suffix))
+	if ct == ctval {
+		suffix = ""
+	}
+
+	if suffix == "" {
+		return ct, mainflux.Types[ct]
+	}
+
+	return ct, suffix
+}
+
 type subscription struct {
 	pubID    string
 	chanID   string
@@ -184,7 +215,7 @@ type subscription struct {
 	channel  *ws.Channel
 }
 
-func (sub subscription) broadcast(svc ws.Service) {
+func (sub subscription) broadcast(svc ws.Service, contentType, format string) {
 	for {
 		_, payload, err := sub.conn.ReadMessage()
 		if websocket.IsUnexpectedCloseError(err) {
@@ -196,11 +227,13 @@ func (sub subscription) broadcast(svc ws.Service) {
 			return
 		}
 		msg := mainflux.RawMessage{
-			Channel:   sub.chanID,
-			Subtopic:  sub.subtopic,
-			Publisher: sub.pubID,
-			Protocol:  protocol,
-			Payload:   payload,
+			Channel:     sub.chanID,
+			Subtopic:    sub.subtopic,
+			ContentType: contentType,
+			Format:      format,
+			Publisher:   sub.pubID,
+			Protocol:    protocol,
+			Payload:     payload,
 		}
 		if err := svc.Publish(context.Background(), "", msg); err != nil {
 			logger.Warn(fmt.Sprintf("Failed to publish message to NATS: %s", err))
@@ -215,7 +248,12 @@ func (sub subscription) broadcast(svc ws.Service) {
 
 func (sub subscription) listen() {
 	for msg := range sub.channel.Messages {
-		if err := sub.conn.WriteMessage(websocket.TextMessage, msg.Payload); err != nil {
+		format := websocket.TextMessage
+		if msg.Format == mainflux.Binary {
+			format = websocket.BinaryMessage
+		}
+
+		if err := sub.conn.WriteMessage(format, msg.Payload); err != nil {
 			logger.Warn(fmt.Sprintf("Failed to broadcast message to thing: %s", err))
 		}
 	}
