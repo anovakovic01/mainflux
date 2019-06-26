@@ -38,6 +38,10 @@ var config = {
         auth_url: process.env.MF_THINGS_URL || 'localhost:8181',
         schema_dir: process.argv[2] || '.',
     },
+    formats = {
+        'application/senml+json': 'text',
+        'application/senml+cbor': 'binary'
+    },
     logger = bunyan.createLogger({name: 'mqtt', level: config.log_level}),
     packageDefinition = protoLoader.loadSync(
         config.schema_dir + '/internal.proto',
@@ -160,7 +164,8 @@ aedes.authorizePublish = function (client, packet, publish) {
         isEmpty = function(value) { 
             return value !== ''; 
         },
-        elements = packet.topic.split('/').slice(baseLength).join('.').split('.').filter(isEmpty),
+        parts = packet.topic.split('/'),
+        elements = parts.slice(baseLength).join('.').split('.').filter(isEmpty),
         baseTopic = 'channel.' + channelId;
     // Remove empty elements
     for (var i = 0; i < elements.length; i++) {
@@ -171,14 +176,40 @@ aedes.authorizePublish = function (client, packet, publish) {
             return;
         }
     }
-    var channelTopic = elements.length ? baseTopic + '.' + elements.join('.') : baseTopic,
+
+    var last = elements[elements.length - 1],
+        format = 'text',
+        contentType = 'application/senml+json',
+        st = elements;
+    if (elements.length > 1) {
+        if (last === 'binary' || last === 'text') {
+            format = last;
+            contentType = elements[elements.length - 2].replace('_', '/').replace('-', '+');
+            st = elements.slice(0, elements.length - 2);
+            parts = parts.slice(0, parts.length - 2);
+        } else {
+            contentType = last.replace('_', '/').replace('-', '+');
+            format = formats[contentType] || format;
+            st = elements.slice(0, elements.length - 1);
+            parts = parts.slice(0, parts.length - 1);
+        }
+    } else if (elements.length == 1) {
+        contentType = last.replace('_', '/').replace('-', '+');
+        st = elements.slice(0, elements.length - 1);
+        parts = parts.slice(0, parts.length - 1);
+    }
+    packet.topic = parts.join('/');
+
+    var channelTopic = st.length ? baseTopic + '.' + st.join('.') : baseTopic,
         onAuthorize = function (err, res) {
             var rawMsg;
             if (!err) {
                 rawMsg = RawMessage.encode({
                     publisher: client.thingId,
                     channel: channelId,
-                    subtopic: elements.join('.'),
+                    subtopic: st.join('.'),
+                    format: format,
+                    contentType: contentType,
                     protocol: 'mqtt',
                     payload: packet.payload
                 }).finish();
