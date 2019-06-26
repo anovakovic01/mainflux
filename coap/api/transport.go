@@ -15,6 +15,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"net/url"
 	"regexp"
 	"strings"
 	"time"
@@ -29,7 +30,10 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-const protocol = "coap"
+const (
+	protocol       = "coap"
+	senMLJSON byte = 110
+)
 
 var (
 	errBadRequest        = errors.New("bad request")
@@ -112,23 +116,31 @@ func subtopic(msg *gocoap.Message) string {
 
 func authorize(msg *gocoap.Message, res *gocoap.Message, cid string) (string, error) {
 	// Device Key is passed as Uri-Query parameter, which option ID is 15 (0xf).
-	key, err := authKey(msg.Option(gocoap.URIQuery))
-	if err != nil {
-		switch err {
-		case errBadOption:
-			res.Code = gocoap.BadOption
-		case errBadRequest:
-			res.Code = gocoap.BadRequest
-		}
-
-		return "", err
+	query := msg.Option(gocoap.URIQuery)
+	queryStr, ok := query.(string)
+	if !ok {
+		res.Code = gocoap.BadRequest
+		return "", errBadRequest
 	}
+
+	params, err := url.ParseQuery(queryStr)
+	if err != nil {
+		res.Code = gocoap.BadRequest
+		return "", errBadRequest
+	}
+
+	auths, ok := params["authorization"]
+	if !ok || len(auths) != 1 {
+		res.Code = gocoap.BadRequest
+		return "", errBadRequest
+	}
+
+	key := auths[0]
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 
 	id, err := auth.CanAccess(ctx, &mainflux.AccessReq{Token: key, ChanID: cid})
-
 	if err != nil {
 		e, ok := status.FromError(err)
 		if ok {
@@ -142,6 +154,7 @@ func authorize(msg *gocoap.Message, res *gocoap.Message, cid string) (string, er
 		}
 		res.Code = gocoap.InternalServerError
 	}
+
 	return id.GetValue(), nil
 }
 
@@ -207,6 +220,16 @@ func receive(svc coap.Service, msg *gocoap.Message) *gocoap.Message {
 		return res
 	}
 
+	ct, err := contentType(msg)
+	if err != nil {
+		res.Code = gocoap.BadRequest
+		return res
+	}
+
+	f := format(msg, ct)
+
+	subtopic = strings.TrimSuffix(subtopic, fmt.Sprintf("/%s", f))
+
 	publisher, err := authorize(msg, res, chanID)
 	if err != nil {
 		res.Code = gocoap.Forbidden
@@ -214,11 +237,13 @@ func receive(svc coap.Service, msg *gocoap.Message) *gocoap.Message {
 	}
 
 	rawMsg := mainflux.RawMessage{
-		Channel:   chanID,
-		Subtopic:  subtopic,
-		Publisher: publisher,
-		Protocol:  protocol,
-		Payload:   msg.Payload,
+		Channel:     chanID,
+		Subtopic:    subtopic,
+		Publisher:   publisher,
+		Format:      f,
+		ContentType: ct,
+		Protocol:    protocol,
+		Payload:     msg.Payload,
 	}
 
 	if err := svc.Publish(context.Background(), "", rawMsg); err != nil {
@@ -315,6 +340,9 @@ func handleMessage(conn *net.UDPConn, addr *net.UDPAddr, o *coap.Observer, msg *
 
 		observeVal := buff.Bytes()
 		notifyMsg.SetOption(gocoap.Observe, observeVal[len(observeVal)-3:])
+		if msg.ContentType == mainflux.SenMLJSON {
+			notifyMsg.SetOption(gocoap.ContentFormat, senMLJSON)
+		}
 
 		if err := gocoap.Transmit(conn, addr, notifyMsg); err != nil {
 			logger.Warn(fmt.Sprintf("Failed to send message to observer: %s", err))
@@ -359,4 +387,53 @@ func ping(svc coap.Service, obsID string, conn *net.UDPConn, addr *net.UDPAddr, 
 			return
 		}
 	}
+}
+
+func contentType(msg *gocoap.Message) (string, error) {
+	ctid, ok := msg.Option(gocoap.ContentFormat).(gocoap.MediaType)
+	if !ok {
+		return "", errBadRequest
+	}
+
+	ct := ""
+	if byte(ctid) == senMLJSON {
+		ct = mainflux.SenMLJSON
+	}
+
+	return ct, nil
+}
+
+func format(msg *gocoap.Message, contentType string) string {
+	f := ""
+	// Message Format is passed as Uri-Query parameter, which option ID is 15 (0xf).
+	query := msg.Option(gocoap.URIQuery)
+	queryStr, ok := query.(string)
+	if !ok {
+		f = ""
+	}
+
+	params, err := url.ParseQuery(queryStr)
+	if err != nil {
+		f = ""
+	}
+
+	formats, ok := params["format"]
+	if !ok {
+		f = ""
+	}
+
+	if len(formats) == 1 {
+		f = formats[0]
+	}
+
+	if f == "" {
+		fmt, ok := mainflux.Types[contentType]
+		if !ok {
+			return mainflux.Text
+		}
+
+		f = fmt
+	}
+
+	return f
 }
