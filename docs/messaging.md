@@ -10,20 +10,32 @@ To publish message over channel, thing should send following request:
 curl -s -S -i --cacert docker/ssl/certs/mainflux-server.crt --insecure -X POST -H "Content-Type: application/senml+json" -H "Authorization: <thing_token>" https://localhost/http/channels/<channel_id>/messages -d '[{"bn":"some-base-name:","bt":1.276020076001e+09, "bu":"A","bver":5, "n":"voltage","u":"V","v":120.1}, {"n":"current","t":-5,"v":1.2}, {"n":"current","t":-4,"v":1.3}]'
 ```
 
-Note that you should always send array of messages in senML format.
+Note that if you're going to use senml message format, you should always send
+messages as an array. If you want to use your custom formats, then you should
+also specify message format as part of `Content-Type` header. There are two
+possible message formats: `binary` and `text`. In order to send format for some
+custom content type, you should pass `<content-type>/<format>` value for 
+`Content-Type`. Format parameter is optional and if not passed it will have
+default value for specified content type or if you've passed custom content type
+it will have value `text`.
 
 ## WebSocket
 
 To publish and receive messages over channel using web socket, you should first
 send handshake request to `/channels/<channel_id>/messages` path. Don't forget
-to send `Authorization` header with thing authorization token.
+to send `Authorization` header with thing authorization token. In order to pass
+message content type to WS adapter you can use `Content-Type` header. To send
+message format you should pass `<content-type>/<format>` value for `Content-Type`.
+Format can have two posslbe values: `binary` and `text`. Format parameter is
+optional and if not passed it will have default value for specified content type
+or if you've passed custom content type it will have value `text`.
 
-If you are not able to send custom headers in your handshake request, send it as
-query parameter `authorization`. Then your path should look like this
-`/channels/<channel_id>/messages?authorization=<thing_auth_key>`.
+If you are not able to send custom headers in your handshake request, send them as
+query parameter `authorization` and `content-type`. Then your path should look like 
+this `/channels/<channel_id>/messages?authorization=<thing_auth_key>&content-type=<content-type>%2F<format>`.
 
 If you are using the docker environment prepend the url with `ws`. So for example
-`/ws/channels/<channel_id>/messages?authorization=<thing_auth_key>`
+`/ws/channels/<channel_id>/messages?authorization=<thing_auth_key>&content-type=<content-type>%2F<format>`.
 
 ### Basic nodejs example
 
@@ -34,7 +46,7 @@ const WebSocket = require('ws');
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0'
 
 // cbf02d60-72f2-4180-9f82-2c957db929d1  is an example of a thing_auth_key
-const ws = new WebSocket('wss://localhost/ws/channels/1/messages?authorization=cbf02d60-72f2-4180-9f82-2c957db929d1')
+const ws = new WebSocket('wss://localhost/ws/channels/1/messages?authorization=cbf02d60-72f2-4180-9f82-2c957db929d1&content-type=application%2Fsenml%2Bjson')
 
 ws.on('open', () => {
     ws.send('something')
@@ -65,6 +77,15 @@ To subscribe to channel, thing should call following command:
 mosquitto_sub -u <thing_id> -P <thing_key> -t channels/<channel_id>/messages -h localhost
 ```
 
+In order to pass content type and format as part of topic, one should append them at the end
+of an existing topic. If you want to use standard topic such as `channels/<channel_id>/messages`
+with SenML content type, you should use following topic `channels/<channel_id>/messages/application_senml-json`.
+You can also pass format at the end of topic - i.e. `channels/<channel_id>/messages/application_senml-json/text`.
+Format parameter is optional and if not passed it will have default value for specified content
+type or if you've passed custom content type it will have value `text`. Content type and format
+will be removed from topic under the hood. You should pass content type and format only when
+you're publishing a message.
+
 If you are using TLS to secure MQTT connection, add `--cafile docker/ssl/certs/ca.crt`
 to every command.
 
@@ -76,7 +97,9 @@ CoAP adapter implements CoAP protocol using underlying UDP and according to [RFC
 coap://localhost/channels/<channel_id>/messages?authorization=<thing_auth_key>
 ```
 
-To send a message, use `POST` request. To subscribe, send `GET` request with Observe option set to 0. There are two ways to unsubscribe:
+To send a message, use `POST` request. When posting a message you can pass content type in `Content-Format` option.
+In order to send format you should use `format` query parameter. Format can have two possible values: `binary` and
+`text`. To subscribe, send `GET` request with Observe option set to 0. There are two ways to unsubscribe:
   1) Send `GET` request with Observe option set to 1.
   2) Forget the token and send `RST` message as a response to `CONF` message received by the server.
 
@@ -84,7 +107,7 @@ The most of the notifications received from the Adapter are non-confirmable. By 
 
 > Server must send a notification in a confirmable message instead of a non-confirmable message at least every 24 hours. This prevents a client that went away or is no longer interested from remaining in the list of observers indefinitely.
 
-CoAP Adapter sends these notifications every 12 hours. To configure this period, please check (adapter documentation)[https://www.github.com/mainflux/mainflux/tree/master/coap/README.md) If the client is no longer interested in receiving notifications, the second scenario described above can be used to unsubscribe
+CoAP Adapter sends these notifications every 12 hours. To configure this period, please check [adapter documentation](https://www.github.com/mainflux/mainflux/tree/master/coap/README.md) If the client is no longer interested in receiving notifications, the second scenario described above can be used to unsubscribe
 
 ## Subtopics
 
