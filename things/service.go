@@ -403,5 +403,6 @@ func (ts *thingsService) hasThing(chanID, key string) (string, error) {
 		return "", ErrUnauthorizedAccess
 	}
 
+	// fmt.Println(thingID)
 	return thingID, nil
 }

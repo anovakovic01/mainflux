@@ -28,12 +28,12 @@ func (req identifyReq) validate() error {
 }
 
 type canAccessReq struct {
+	chanID string
 	Token  string `json:"token"`
-	ChanID string `json:"chan_id"`
 }
 
 func (req canAccessReq) validate() error {
-	if req.Token == "" || req.ChanID == "" {
+	if req.Token == "" || req.chanID == "" {
 		return things.ErrUnauthorizedAccess
 	}
 

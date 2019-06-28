@@ -68,7 +68,9 @@ func decodeCanAccess(_ context.Context, r *http.Request) (interface{}, error) {
 		return nil, errUnsupportedContentType
 	}
 
-	req := canAccessReq{}
+	req := canAccessReq{
+		chanID: bone.GetValue(r, "chanId"),
+	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		return nil, err
 	}
@@ -98,14 +100,8 @@ func encodeError(_ context.Context, err error, w http.ResponseWriter) {
 	w.Header().Set("Content-Type", contentType)
 
 	switch err {
-	case things.ErrMalformedEntity:
-		w.WriteHeader(http.StatusBadRequest)
 	case things.ErrUnauthorizedAccess:
 		w.WriteHeader(http.StatusForbidden)
-	case things.ErrNotFound:
-		w.WriteHeader(http.StatusNotFound)
-	case things.ErrConflict:
-		w.WriteHeader(http.StatusUnprocessableEntity)
 	case errUnsupportedContentType:
 		w.WriteHeader(http.StatusUnsupportedMediaType)
 	case io.ErrUnexpectedEOF:
