@@ -181,19 +181,27 @@ aedes.authorizePublish = function (client, packet, publish) {
         format = 'text',
         contentType = 'application/senml+json',
         st = elements;
+    
+    // If subtopic has more then one part try to read both format and content type
+    // from it.
     if (elements.length > 1) {
         if (last === 'binary' || last === 'text') {
+            // If the last element is format, decode and extract content type from 
+            // subtopic.
             format = last;
             contentType = elements[elements.length - 2].replace('_', '/').replace('-', '+');
             st = elements.slice(0, elements.length - 2);
             parts = parts.slice(0, parts.length - 2);
         } else {
+            // If the last element is not format,  decode and extract content type
+            // from last element.
             contentType = last.replace('_', '/').replace('-', '+');
             format = formats[contentType] || format;
             st = elements.slice(0, elements.length - 1);
             parts = parts.slice(0, parts.length - 1);
         }
     } else if (elements.length == 1) {
+        // If subtopic has only one part, just decode and read content type from it.
         contentType = last.replace('_', '/').replace('-', '+');
         st = elements.slice(0, elements.length - 1);
         parts = parts.slice(0, parts.length - 1);
