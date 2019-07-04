@@ -40,7 +40,7 @@ func MakeHandler(svc things.Service) http.Handler {
 		opts...,
 	))
 
-	r.Post("/channel/:chanId/access", kithttp.NewServer(
+	r.Post("/channels/:chanId/access", kithttp.NewServer(
 		canAccessEndpoint(svc),
 		decodeCanAccess,
 		encodeResponse,

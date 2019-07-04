@@ -196,7 +196,7 @@ func TestCanAccess(t *testing.T) {
 		req := testRequest{
 			client:      ts.Client(),
 			method:      http.MethodPost,
-			url:         fmt.Sprintf("%s/channel/%s/access", ts.URL, tc.chanID),
+			url:         fmt.Sprintf("%s/channels/%s/access", ts.URL, tc.chanID),
 			contentType: tc.contentType,
 			body:        strings.NewReader(tc.req),
 		}
