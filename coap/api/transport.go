@@ -31,8 +31,8 @@ import (
 )
 
 const (
-	protocol       = "coap"
-	senMLJSON byte = 110
+	protocol                   = "coap"
+	senMLJSON gocoap.MediaType = 110
 )
 
 var (
@@ -396,7 +396,7 @@ func contentType(msg *gocoap.Message) (string, error) {
 	}
 
 	ct := ""
-	if byte(ctid) == senMLJSON {
+	if ctid == senMLJSON {
 		ct = mainflux.SenMLJSON
 	}
 
