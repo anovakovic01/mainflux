@@ -34,27 +34,34 @@ import (
 )
 
 const (
-	defClientTLS = "false"
-	defCACerts   = ""
-	defPort      = "8180"
-	defLogLevel  = "error"
-	defNatsURL   = broker.DefaultURL
-	defThingsURL = "localhost:8181"
-	envClientTLS = "MF_WS_ADAPTER_CLIENT_TLS"
-	envCACerts   = "MF_WS_ADAPTER_CA_CERTS"
-	envPort      = "MF_WS_ADAPTER_PORT"
-	envLogLevel  = "MF_WS_ADAPTER_LOG_LEVEL"
-	envNatsURL   = "MF_NATS_URL"
-	envThingsURL = "MF_THINGS_URL"
+	defClientTLS     = "false"
+	defCACerts       = ""
+	defPort          = "8180"
+	defLogLevel      = "error"
+	defNatsURL       = broker.DefaultURL
+	defThingsURL     = "localhost:8181"
+	defJaegerURL     = "localhost:6831"
+	defThingsTimeout = "1" // in seconds
+
+	envClientTLS     = "MF_WS_ADAPTER_CLIENT_TLS"
+	envCACerts       = "MF_WS_ADAPTER_CA_CERTS"
+	envPort          = "MF_WS_ADAPTER_PORT"
+	envLogLevel      = "MF_WS_ADAPTER_LOG_LEVEL"
+	envNatsURL       = "MF_NATS_URL"
+	envThingsURL     = "MF_THINGS_URL"
+	envJaegerURL     = "MF_JAEGER_URL"
+	envThingsTimeout = "MF_WS_ADAPTER_THINGS_TIMEOUT"
 )
 
 type config struct {
-	clientTLS bool
-	caCerts   string
-	thingsURL string
-	natsURL   string
-	logLevel  string
-	port      string
+	clientTLS     bool
+	caCerts       string
+	thingsURL     string
+	natsURL       string
+	logLevel      string
+	port          string
+	jaegerURL     string
+	thingsTimeout time.Duration
 }
 
 func main() {
@@ -75,10 +82,10 @@ func main() {
 	conn := connectToThings(cfg, logger)
 	defer conn.Close()
 
-	thingsTracer, thingsCloser := initJaeger("things", logger)
+	thingsTracer, thingsCloser := initJaeger("things", cfg.jaegerURL, logger)
 	defer thingsCloser.Close()
 
-	cc := thingsapi.NewClient(conn, thingsTracer, time.Second)
+	cc := thingsapi.NewClient(conn, thingsTracer, cfg.thingsTimeout)
 	pubsub := nats.New(nc)
 	svc := newService(pubsub, logger)
 
@@ -106,13 +113,20 @@ func loadConfig() config {
 		log.Fatalf("Invalid value passed for %s\n", envClientTLS)
 	}
 
+	timeout, err := strconv.ParseInt(mainflux.Env(envThingsTimeout, defThingsTimeout), 10, 64)
+	if err != nil {
+		log.Fatalf("Invalid %s value: %s", envThingsTimeout, err.Error())
+	}
+
 	return config{
-		clientTLS: tls,
-		caCerts:   mainflux.Env(envCACerts, defCACerts),
-		thingsURL: mainflux.Env(envThingsURL, defThingsURL),
-		natsURL:   mainflux.Env(envNatsURL, defNatsURL),
-		logLevel:  mainflux.Env(envLogLevel, defLogLevel),
-		port:      mainflux.Env(envPort, defPort),
+		clientTLS:     tls,
+		caCerts:       mainflux.Env(envCACerts, defCACerts),
+		thingsURL:     mainflux.Env(envThingsURL, defThingsURL),
+		natsURL:       mainflux.Env(envNatsURL, defNatsURL),
+		logLevel:      mainflux.Env(envLogLevel, defLogLevel),
+		port:          mainflux.Env(envPort, defPort),
+		jaegerURL:     mainflux.Env(envJaegerURL, defJaegerURL),
+		thingsTimeout: time.Duration(timeout) * time.Second,
 	}
 }
 
@@ -140,7 +154,7 @@ func connectToThings(cfg config, logger logger.Logger) *grpc.ClientConn {
 	return conn
 }
 
-func initJaeger(svcName string, logger logger.Logger) (opentracing.Tracer, io.Closer) {
+func initJaeger(svcName, url string, logger logger.Logger) (opentracing.Tracer, io.Closer) {
 	tracer, closer, err := jconfig.Configuration{
 		ServiceName: svcName,
 		Sampler: &jconfig.SamplerConfig{
@@ -148,7 +162,7 @@ func initJaeger(svcName string, logger logger.Logger) (opentracing.Tracer, io.Cl
 			Param: 1,
 		},
 		Reporter: &jconfig.ReporterConfig{
-			LocalAgentHostPort: "jaeger:6831",
+			LocalAgentHostPort: url,
 			LogSpans:           true,
 		},
 	}.NewTracer()

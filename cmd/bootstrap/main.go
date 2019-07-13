@@ -15,6 +15,7 @@ import (
 	"os/signal"
 	"strconv"
 	"syscall"
+	"time"
 
 	rediscons "github.com/mainflux/mainflux/bootstrap/redis/consumer"
 	redisprod "github.com/mainflux/mainflux/bootstrap/redis/producer"
@@ -63,6 +64,8 @@ const (
 	defESPass        = ""
 	defESDB          = "0"
 	defInstanceName  = "bootstrap"
+	defJaegerURL     = "localhost:6831"
+	defUsersTimeout  = "1" // in seconds
 
 	envLogLevel      = "MF_BOOTSTRAP_LOG_LEVEL"
 	envDBHost        = "MF_BOOTSTRAP_DB_HOST"
@@ -89,6 +92,8 @@ const (
 	envESPass        = "MF_BOOTSTRAP_ES_PASS"
 	envESDB          = "MF_BOOTSTRAP_ES_DB"
 	envInstanceName  = "MF_BOOTSTRAP_INSTANCE_NAME"
+	envJaegerURL     = "MF_JAEGER_URL"
+	envUsersTimeout  = "MF_BOOTSTRAP_USERS_TIMEOUT"
 )
 
 type config struct {
@@ -109,6 +114,8 @@ type config struct {
 	esPass       string
 	esDB         string
 	instanceName string
+	jaegerURL    string
+	usersTimeout time.Duration
 }
 
 func main() {
@@ -131,7 +138,7 @@ func main() {
 	esClient := connectToRedis(cfg.esURL, cfg.esPass, cfg.esDB, logger)
 	defer esClient.Close()
 
-	usersTracer, usersCloser := initJaeger("users", logger)
+	usersTracer, usersCloser := initJaeger("users", cfg.jaegerURL, logger)
 	defer usersCloser.Close()
 
 	svc := newService(conn, usersTracer, db, logger, esClient, cfg)
@@ -167,6 +174,11 @@ func loadConfig() config {
 		SSLRootCert: mainflux.Env(envDBSSLRootCert, defDBSSLRootCert),
 	}
 
+	timeout, err := strconv.ParseInt(mainflux.Env(envUsersTimeout, defUsersTimeout), 10, 64)
+	if err != nil {
+		log.Fatalf("Invalid %s value: %s", envUsersTimeout, err.Error())
+	}
+
 	return config{
 		logLevel:     mainflux.Env(envLogLevel, defLogLevel),
 		dbConfig:     dbConfig,
@@ -185,6 +197,8 @@ func loadConfig() config {
 		esPass:       mainflux.Env(envESPass, defESPass),
 		esDB:         mainflux.Env(envESDB, defESDB),
 		instanceName: mainflux.Env(envInstanceName, defInstanceName),
+		jaegerURL:    mainflux.Env(envJaegerURL, defJaegerURL),
+		usersTimeout: time.Duration(timeout) * time.Second,
 	}
 }
 
@@ -211,7 +225,7 @@ func connectToRedis(redisURL, redisPass, redisDB string, logger mflog.Logger) *r
 	})
 }
 
-func initJaeger(svcName string, logger logger.Logger) (opentracing.Tracer, io.Closer) {
+func initJaeger(svcName, url string, logger logger.Logger) (opentracing.Tracer, io.Closer) {
 	tracer, closer, err := jconfig.Configuration{
 		ServiceName: svcName,
 		Sampler: &jconfig.SamplerConfig{
@@ -219,7 +233,7 @@ func initJaeger(svcName string, logger logger.Logger) (opentracing.Tracer, io.Cl
 			Param: 1,
 		},
 		Reporter: &jconfig.ReporterConfig{
-			LocalAgentHostPort: "jaeger:6831",
+			LocalAgentHostPort: url,
 			LogSpans:           true,
 		},
 	}.NewTracer()
@@ -240,7 +254,7 @@ func newService(conn *grpc.ClientConn, usersTracer opentracing.Tracer, db *sqlx.
 	}
 
 	sdk := mfsdk.NewSDK(config)
-	users := usersapi.NewClient(usersTracer, conn)
+	users := usersapi.NewClient(usersTracer, conn, cfg.usersTimeout)
 
 	svc := bootstrap.New(users, thingsRepo, sdk)
 	svc = redisprod.NewEventStoreMiddleware(svc, esClient)

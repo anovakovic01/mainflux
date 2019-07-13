@@ -37,36 +37,42 @@ import (
 const (
 	sep = ","
 
-	defLogLevel   = "error"
-	defPort       = "8180"
-	defCluster    = "127.0.0.1"
-	defKeyspace   = "mainflux"
-	defDBUsername = ""
-	defDBPassword = ""
-	defDBPort     = "9042"
-	defThingsURL  = "localhost:8181"
-	defClientTLS  = "false"
-	defCACerts    = ""
+	defLogLevel      = "error"
+	defPort          = "8180"
+	defCluster       = "127.0.0.1"
+	defKeyspace      = "mainflux"
+	defDBUsername    = ""
+	defDBPassword    = ""
+	defDBPort        = "9042"
+	defThingsURL     = "localhost:8181"
+	defClientTLS     = "false"
+	defCACerts       = ""
+	defJaegerURL     = "localhost:6831"
+	defThingsTimeout = "1" // in seconds
 
-	envLogLevel   = "MF_CASSANDRA_READER_LOG_LEVEL"
-	envPort       = "MF_CASSANDRA_READER_PORT"
-	envCluster    = "MF_CASSANDRA_READER_DB_CLUSTER"
-	envKeyspace   = "MF_CASSANDRA_READER_DB_KEYSPACE"
-	envDBUsername = "MF_CASSANDRA_READER_DB_USERNAME"
-	envDBPassword = "MF_CASSANDRA_READER_DB_PASSWORD"
-	envDBPort     = "MF_CASSANDRA_READER_DB_PORT"
-	envThingsURL  = "MF_THINGS_URL"
-	envClientTLS  = "MF_CASSANDRA_READER_CLIENT_TLS"
-	envCACerts    = "MF_CASSANDRA_READER_CA_CERTS"
+	envLogLevel      = "MF_CASSANDRA_READER_LOG_LEVEL"
+	envPort          = "MF_CASSANDRA_READER_PORT"
+	envCluster       = "MF_CASSANDRA_READER_DB_CLUSTER"
+	envKeyspace      = "MF_CASSANDRA_READER_DB_KEYSPACE"
+	envDBUsername    = "MF_CASSANDRA_READER_DB_USERNAME"
+	envDBPassword    = "MF_CASSANDRA_READER_DB_PASSWORD"
+	envDBPort        = "MF_CASSANDRA_READER_DB_PORT"
+	envThingsURL     = "MF_THINGS_URL"
+	envClientTLS     = "MF_CASSANDRA_READER_CLIENT_TLS"
+	envCACerts       = "MF_CASSANDRA_READER_CA_CERTS"
+	envJaegerURL     = "MF_JAEGER_URL"
+	envThingsTimeout = "MF_CASSANDRA_READER_THINGS_TIMEOUT"
 )
 
 type config struct {
-	logLevel  string
-	port      string
-	dbCfg     cassandra.DBConfig
-	thingsURL string
-	clientTLS bool
-	caCerts   string
+	logLevel      string
+	port          string
+	dbCfg         cassandra.DBConfig
+	thingsURL     string
+	clientTLS     bool
+	caCerts       string
+	jaegerURL     string
+	thingsTimeout time.Duration
 }
 
 func main() {
@@ -83,10 +89,10 @@ func main() {
 	conn := connectToThings(cfg, logger)
 	defer conn.Close()
 
-	thingsTracer, thingsCloser := initJaeger("things", logger)
+	thingsTracer, thingsCloser := initJaeger("things", cfg.jaegerURL, logger)
 	defer thingsCloser.Close()
 
-	tc := thingsapi.NewClient(conn, thingsTracer, time.Second)
+	tc := thingsapi.NewClient(conn, thingsTracer, cfg.thingsTimeout)
 	repo := newService(session, logger)
 
 	errs := make(chan error, 2)
@@ -122,13 +128,20 @@ func loadConfig() config {
 		log.Fatalf("Invalid value passed for %s\n", envClientTLS)
 	}
 
+	timeout, err := strconv.ParseInt(mainflux.Env(envThingsTimeout, defThingsTimeout), 10, 64)
+	if err != nil {
+		log.Fatalf("Invalid %s value: %s", envThingsTimeout, err.Error())
+	}
+
 	return config{
-		logLevel:  mainflux.Env(envLogLevel, defLogLevel),
-		port:      mainflux.Env(envPort, defPort),
-		dbCfg:     dbCfg,
-		thingsURL: mainflux.Env(envThingsURL, defThingsURL),
-		clientTLS: tls,
-		caCerts:   mainflux.Env(envCACerts, defCACerts),
+		logLevel:      mainflux.Env(envLogLevel, defLogLevel),
+		port:          mainflux.Env(envPort, defPort),
+		dbCfg:         dbCfg,
+		thingsURL:     mainflux.Env(envThingsURL, defThingsURL),
+		clientTLS:     tls,
+		caCerts:       mainflux.Env(envCACerts, defCACerts),
+		jaegerURL:     mainflux.Env(envJaegerURL, defJaegerURL),
+		thingsTimeout: time.Duration(timeout) * time.Second,
 	}
 }
 
@@ -166,7 +179,7 @@ func connectToThings(cfg config, logger logger.Logger) *grpc.ClientConn {
 	return conn
 }
 
-func initJaeger(svcName string, logger logger.Logger) (opentracing.Tracer, io.Closer) {
+func initJaeger(svcName, url string, logger logger.Logger) (opentracing.Tracer, io.Closer) {
 	tracer, closer, err := jconfig.Configuration{
 		ServiceName: svcName,
 		Sampler: &jconfig.SamplerConfig{
@@ -174,7 +187,7 @@ func initJaeger(svcName string, logger logger.Logger) (opentracing.Tracer, io.Cl
 			Param: 1,
 		},
 		Reporter: &jconfig.ReporterConfig{
-			LocalAgentHostPort: "jaeger:6831",
+			LocalAgentHostPort: url,
 			LogSpans:           true,
 		},
 	}.NewTracer()

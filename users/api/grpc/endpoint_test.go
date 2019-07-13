@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"net"
 	"testing"
+	"time"
 
 	"github.com/mainflux/mainflux"
 	"github.com/mainflux/mainflux/users"
@@ -54,7 +55,7 @@ func TestIdentify(t *testing.T) {
 
 	usersAddr := fmt.Sprintf("localhost:%d", port)
 	conn, _ := grpc.Dial(usersAddr, grpc.WithInsecure())
-	client := grpcapi.NewClient(mocktracer.New(), conn)
+	client := grpcapi.NewClient(mocktracer.New(), conn, time.Second)
 
 	cases := map[string]struct {
 		token string

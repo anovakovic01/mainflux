@@ -54,6 +54,8 @@ const (
 	defSecret        = "users"
 	defServerCert    = ""
 	defServerKey     = ""
+	defJaegerURL     = "localhost:6831"
+
 	envLogLevel      = "MF_USERS_LOG_LEVEL"
 	envDBHost        = "MF_USERS_DB_HOST"
 	envDBPort        = "MF_USERS_DB_PORT"
@@ -69,6 +71,7 @@ const (
 	envSecret        = "MF_USERS_SECRET"
 	envServerCert    = "MF_USERS_SERVER_CERT"
 	envServerKey     = "MF_USERS_SERVER_KEY"
+	envJaegerURL     = "MF_JAEGER_URL"
 )
 
 type config struct {
@@ -79,6 +82,7 @@ type config struct {
 	secret     string
 	serverCert string
 	serverKey  string
+	jaegerURL  string
 }
 
 func main() {
@@ -92,10 +96,10 @@ func main() {
 	db := connectToDB(cfg.dbConfig, logger)
 	defer db.Close()
 
-	tracer, closer := initJaeger("users", logger)
+	tracer, closer := initJaeger("users", cfg.jaegerURL, logger)
 	defer closer.Close()
 
-	dbTracer, dbCloser := initJaeger("users_db", logger)
+	dbTracer, dbCloser := initJaeger("users_db", cfg.jaegerURL, logger)
 	defer dbCloser.Close()
 
 	svc := newService(db, dbTracer, cfg.secret, logger)
@@ -115,7 +119,6 @@ func main() {
 }
 
 func loadConfig() config {
-
 	dbConfig := postgres.Config{
 		Host:        mainflux.Env(envDBHost, defDBHost),
 		Port:        mainflux.Env(envDBPort, defDBPort),
@@ -136,10 +139,11 @@ func loadConfig() config {
 		secret:     mainflux.Env(envSecret, defSecret),
 		serverCert: mainflux.Env(envServerCert, defServerCert),
 		serverKey:  mainflux.Env(envServerKey, defServerKey),
+		jaegerURL:  mainflux.Env(envJaegerURL, defJaegerURL),
 	}
 }
 
-func initJaeger(svcName string, logger logger.Logger) (opentracing.Tracer, io.Closer) {
+func initJaeger(svcName, url string, logger logger.Logger) (opentracing.Tracer, io.Closer) {
 	tracer, closer, err := jconfig.Configuration{
 		ServiceName: svcName,
 		Sampler: &jconfig.SamplerConfig{
@@ -147,7 +151,7 @@ func initJaeger(svcName string, logger logger.Logger) (opentracing.Tracer, io.Cl
 			Param: 1,
 		},
 		Reporter: &jconfig.ReporterConfig{
-			LocalAgentHostPort: "jaeger:6831",
+			LocalAgentHostPort: url,
 			LogSpans:           true,
 		},
 	}.NewTracer()

@@ -17,6 +17,7 @@ import (
 	"os/signal"
 	"strconv"
 	"syscall"
+	"time"
 
 	"github.com/mainflux/mainflux/things/tracing"
 
@@ -70,6 +71,8 @@ const (
 	defUsersURL        = "localhost:8181"
 	defSingleUserEmail = ""
 	defSingleUserToken = ""
+	defJaegerURL       = "localhost:6831"
+	defUsersTimeout    = "1" // in seconds
 
 	envLogLevel        = "MF_THINGS_LOG_LEVEL"
 	envDBHost          = "MF_THINGS_DB_HOST"
@@ -97,6 +100,8 @@ const (
 	envServerKey       = "MF_THINGS_SERVER_KEY"
 	envSingleUserEmail = "MF_THINGS_SINGLE_USER_EMAIL"
 	envSingleUserToken = "MF_THINGS_SINGLE_USER_TOKEN"
+	envJaegerURL       = "MF_JAEGER_URL"
+	envUsersTimeout    = "MF_THINGS_USERS_TIMEOUT"
 )
 
 type config struct {
@@ -118,6 +123,8 @@ type config struct {
 	serverKey       string
 	singleUserEmail string
 	singleUserToken string
+	jaegerURL       string
+	usersTimeout    time.Duration
 }
 
 func main() {
@@ -128,7 +135,7 @@ func main() {
 		log.Fatalf(err.Error())
 	}
 
-	thingsTracer, thingsCloser := initJaeger("things", logger)
+	thingsTracer, thingsCloser := initJaeger("things", cfg.jaegerURL, logger)
 	defer thingsCloser.Close()
 
 	cacheClient := connectToRedis(cfg.cacheURL, cfg.cachePass, cfg.cacheDB, logger)
@@ -138,7 +145,7 @@ func main() {
 	db := connectToDB(cfg.dbConfig, logger)
 	defer db.Close()
 
-	usersTracer, usersCloser := initJaeger("users", logger)
+	usersTracer, usersCloser := initJaeger("users", cfg.jaegerURL, logger)
 	defer usersCloser.Close()
 
 	users, close := createUsersClient(cfg, usersTracer, logger)
@@ -146,10 +153,10 @@ func main() {
 		defer close()
 	}
 
-	dbTracer, dbCloser := initJaeger("things_db", logger)
+	dbTracer, dbCloser := initJaeger("things_db", cfg.jaegerURL, logger)
 	defer dbCloser.Close()
 
-	cacheTracer, cacheCloser := initJaeger("things_cache", logger)
+	cacheTracer, cacheCloser := initJaeger("things_cache", cfg.jaegerURL, logger)
 	defer cacheCloser.Close()
 
 	svc := newService(users, dbTracer, cacheTracer, db, cacheClient, esClient, logger)
@@ -173,6 +180,11 @@ func loadConfig() config {
 	tls, err := strconv.ParseBool(mainflux.Env(envClientTLS, defClientTLS))
 	if err != nil {
 		log.Fatalf("Invalid value passed for %s\n", envClientTLS)
+	}
+
+	timeout, err := strconv.ParseInt(mainflux.Env(envUsersTimeout, defUsersTimeout), 10, 64)
+	if err != nil {
+		log.Fatalf("Invalid %s value: %s", envUsersTimeout, err.Error())
 	}
 
 	dbConfig := postgres.Config{
@@ -206,10 +218,12 @@ func loadConfig() config {
 		serverKey:       mainflux.Env(envServerKey, defServerKey),
 		singleUserEmail: mainflux.Env(envSingleUserEmail, defSingleUserEmail),
 		singleUserToken: mainflux.Env(envSingleUserToken, defSingleUserToken),
+		jaegerURL:       mainflux.Env(envJaegerURL, defJaegerURL),
+		usersTimeout:    time.Duration(timeout) * time.Second,
 	}
 }
 
-func initJaeger(svcName string, logger logger.Logger) (opentracing.Tracer, io.Closer) {
+func initJaeger(svcName, url string, logger logger.Logger) (opentracing.Tracer, io.Closer) {
 	tracer, closer, err := jconfig.Configuration{
 		ServiceName: svcName,
 		Sampler: &jconfig.SamplerConfig{
@@ -217,7 +231,7 @@ func initJaeger(svcName string, logger logger.Logger) (opentracing.Tracer, io.Cl
 			Param: 1,
 		},
 		Reporter: &jconfig.ReporterConfig{
-			LocalAgentHostPort: "jaeger:6831",
+			LocalAgentHostPort: url,
 			LogSpans:           true,
 		},
 	}.NewTracer()
@@ -258,7 +272,7 @@ func createUsersClient(cfg config, tracer opentracing.Tracer, logger logger.Logg
 	}
 
 	conn := connectToUsers(cfg, logger)
-	return usersapi.NewClient(tracer, conn), conn.Close
+	return usersapi.NewClient(tracer, conn, cfg.usersTimeout), conn.Close
 }
 
 func connectToUsers(cfg config, logger logger.Logger) *grpc.ClientConn {
