@@ -1,5 +1,5 @@
 //
-// Copyright (c) 2018
+// Copyright (c) 2019
 // Mainflux
 //
 // SPDX-License-Identifier: Apache-2.0
@@ -9,6 +9,7 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"log"
 	"net"
 	"net/http"
@@ -17,7 +18,10 @@ import (
 	"strconv"
 	"syscall"
 
+	"github.com/mainflux/mainflux/things/tracing"
+
 	"github.com/jmoiron/sqlx"
+	opentracing "github.com/opentracing/opentracing-go"
 	"google.golang.org/grpc/credentials"
 
 	kitprometheus "github.com/go-kit/kit/metrics/prometheus"
@@ -35,6 +39,7 @@ import (
 	"github.com/mainflux/mainflux/things/uuid"
 	usersapi "github.com/mainflux/mainflux/users/api/grpc"
 	stdprometheus "github.com/prometheus/client_golang/prometheus"
+	jconfig "github.com/uber/jaeger-client-go/config"
 	"google.golang.org/grpc"
 )
 
@@ -122,6 +127,10 @@ func main() {
 	if err != nil {
 		log.Fatalf(err.Error())
 	}
+
+	thingsTracer, thingsCloser := initJaeger("things", logger)
+	defer thingsCloser.Close()
+
 	cacheClient := connectToRedis(cfg.cacheURL, cfg.cachePass, cfg.cacheDB, logger)
 
 	esClient := connectToRedis(cfg.esURL, cfg.esPass, cfg.esDB, logger)
@@ -129,17 +138,26 @@ func main() {
 	db := connectToDB(cfg.dbConfig, logger)
 	defer db.Close()
 
-	users, close := createUsersClient(cfg, logger)
+	usersTracer, usersCloser := initJaeger("users", logger)
+	defer usersCloser.Close()
+
+	users, close := createUsersClient(cfg, usersTracer, logger)
 	if close != nil {
 		defer close()
 	}
 
-	svc := newService(users, db, cacheClient, esClient, logger)
+	dbTracer, dbCloser := initJaeger("things_db", logger)
+	defer dbCloser.Close()
+
+	cacheTracer, cacheCloser := initJaeger("things_cache", logger)
+	defer cacheCloser.Close()
+
+	svc := newService(users, dbTracer, cacheTracer, db, cacheClient, esClient, logger)
 	errs := make(chan error, 2)
 
-	go startHTTPServer(thhttpapi.MakeHandler(svc), cfg.httpPort, cfg, logger, errs)
-	go startHTTPServer(authhttpapi.MakeHandler(svc), cfg.authHTTPPort, cfg, logger, errs)
-	go startGRPCServer(svc, cfg, logger, errs)
+	go startHTTPServer(thhttpapi.MakeHandler(thingsTracer, svc), cfg.httpPort, cfg, logger, errs)
+	go startHTTPServer(authhttpapi.MakeHandler(thingsTracer, svc), cfg.authHTTPPort, cfg, logger, errs)
+	go startGRPCServer(svc, thingsTracer, cfg, logger, errs)
 
 	go func() {
 		c := make(chan os.Signal)
@@ -191,6 +209,26 @@ func loadConfig() config {
 	}
 }
 
+func initJaeger(svcName string, logger logger.Logger) (opentracing.Tracer, io.Closer) {
+	tracer, closer, err := jconfig.Configuration{
+		ServiceName: svcName,
+		Sampler: &jconfig.SamplerConfig{
+			Type:  "const",
+			Param: 1,
+		},
+		Reporter: &jconfig.ReporterConfig{
+			LocalAgentHostPort: "jaeger:6831",
+			LogSpans:           true,
+		},
+	}.NewTracer()
+	if err != nil {
+		logger.Error(fmt.Sprintf("Failed to init Jaeger client: %s", err))
+		os.Exit(1)
+	}
+
+	return tracer, closer
+}
+
 func connectToRedis(cacheURL, cachePass string, cacheDB string, logger logger.Logger) *redis.Client {
 	db, err := strconv.Atoi(cacheDB)
 	if err != nil {
@@ -214,13 +252,13 @@ func connectToDB(dbConfig postgres.Config, logger logger.Logger) *sqlx.DB {
 	return db
 }
 
-func createUsersClient(cfg config, logger logger.Logger) (mainflux.UsersServiceClient, func() error) {
+func createUsersClient(cfg config, tracer opentracing.Tracer, logger logger.Logger) (mainflux.UsersServiceClient, func() error) {
 	if cfg.singleUserEmail != "" && cfg.singleUserToken != "" {
 		return localusers.NewSingleUserService(cfg.singleUserEmail, cfg.singleUserToken), nil
 	}
 
 	conn := connectToUsers(cfg, logger)
-	return usersapi.NewClient(conn), conn.Close
+	return usersapi.NewClient(tracer, conn), conn.Close
 }
 
 func connectToUsers(cfg config, logger logger.Logger) *grpc.ClientConn {
@@ -248,11 +286,18 @@ func connectToUsers(cfg config, logger logger.Logger) *grpc.ClientConn {
 	return conn
 }
 
-func newService(users mainflux.UsersServiceClient, db *sqlx.DB, cacheClient *redis.Client, esClient *redis.Client, logger logger.Logger) things.Service {
+func newService(users mainflux.UsersServiceClient, dbTracer opentracing.Tracer, cacheTracer opentracing.Tracer, db *sqlx.DB, cacheClient *redis.Client, esClient *redis.Client, logger logger.Logger) things.Service {
 	thingsRepo := postgres.NewThingRepository(db)
+	thingsRepo = tracing.ThingRepositoryMiddleware(dbTracer, thingsRepo)
+
 	channelsRepo := postgres.NewChannelRepository(db)
+	channelsRepo = tracing.ChannelRepositoryMiddleware(dbTracer, channelsRepo)
+
 	chanCache := rediscache.NewChannelCache(cacheClient)
+	chanCache = tracing.ChannelCacheMiddleware(cacheTracer, chanCache)
+
 	thingCache := rediscache.NewThingCache(cacheClient)
+	thingCache = tracing.ThingCacheMiddleware(cacheTracer, thingCache)
 	idp := uuid.New()
 
 	svc := things.New(users, thingsRepo, channelsRepo, chanCache, thingCache, idp)
@@ -288,7 +333,7 @@ func startHTTPServer(handler http.Handler, port string, cfg config, logger logge
 	errs <- http.ListenAndServe(p, handler)
 }
 
-func startGRPCServer(svc things.Service, cfg config, logger logger.Logger, errs chan error) {
+func startGRPCServer(svc things.Service, tracer opentracing.Tracer, cfg config, logger logger.Logger, errs chan error) {
 	p := fmt.Sprintf(":%s", cfg.authGRPCPort)
 	listener, err := net.Listen("tcp", p)
 	if err != nil {
@@ -311,6 +356,6 @@ func startGRPCServer(svc things.Service, cfg config, logger logger.Logger, errs 
 		server = grpc.NewServer()
 	}
 
-	mainflux.RegisterThingsServiceServer(server, authgrpcapi.NewServer(svc))
+	mainflux.RegisterThingsServiceServer(server, authgrpcapi.NewServer(tracer, svc))
 	errs <- server.Serve(listener)
 }
