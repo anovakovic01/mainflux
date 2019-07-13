@@ -8,6 +8,7 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -17,6 +18,8 @@ import (
 
 	rediscons "github.com/mainflux/mainflux/bootstrap/redis/consumer"
 	redisprod "github.com/mainflux/mainflux/bootstrap/redis/producer"
+	"github.com/mainflux/mainflux/logger"
+	opentracing "github.com/opentracing/opentracing-go"
 
 	kitprometheus "github.com/go-kit/kit/metrics/prometheus"
 	r "github.com/go-redis/redis"
@@ -29,6 +32,7 @@ import (
 	mfsdk "github.com/mainflux/mainflux/sdk/go"
 	usersapi "github.com/mainflux/mainflux/users/api/grpc"
 	stdprometheus "github.com/prometheus/client_golang/prometheus"
+	jconfig "github.com/uber/jaeger-client-go/config"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 )
@@ -127,7 +131,10 @@ func main() {
 	esClient := connectToRedis(cfg.esURL, cfg.esPass, cfg.esDB, logger)
 	defer esClient.Close()
 
-	svc := newService(conn, db, logger, esClient, cfg)
+	usersTracer, usersCloser := initJaeger("users", logger)
+	defer usersCloser.Close()
+
+	svc := newService(conn, usersTracer, db, logger, esClient, cfg)
 	errs := make(chan error, 2)
 
 	go startHTTPServer(svc, cfg, logger, errs)
@@ -204,7 +211,27 @@ func connectToRedis(redisURL, redisPass, redisDB string, logger mflog.Logger) *r
 	})
 }
 
-func newService(conn *grpc.ClientConn, db *sqlx.DB, logger mflog.Logger, esClient *r.Client, cfg config) bootstrap.Service {
+func initJaeger(svcName string, logger logger.Logger) (opentracing.Tracer, io.Closer) {
+	tracer, closer, err := jconfig.Configuration{
+		ServiceName: svcName,
+		Sampler: &jconfig.SamplerConfig{
+			Type:  "const",
+			Param: 1,
+		},
+		Reporter: &jconfig.ReporterConfig{
+			LocalAgentHostPort: "jaeger:6831",
+			LogSpans:           true,
+		},
+	}.NewTracer()
+	if err != nil {
+		logger.Error(fmt.Sprintf("Failed to init Jaeger client: %s", err))
+		os.Exit(1)
+	}
+
+	return tracer, closer
+}
+
+func newService(conn *grpc.ClientConn, usersTracer opentracing.Tracer, db *sqlx.DB, logger mflog.Logger, esClient *r.Client, cfg config) bootstrap.Service {
 	thingsRepo := postgres.NewConfigRepository(db, logger)
 
 	config := mfsdk.Config{
@@ -213,7 +240,7 @@ func newService(conn *grpc.ClientConn, db *sqlx.DB, logger mflog.Logger, esClien
 	}
 
 	sdk := mfsdk.NewSDK(config)
-	users := usersapi.NewClient(conn)
+	users := usersapi.NewClient(usersTracer, conn)
 
 	svc := bootstrap.New(users, thingsRepo, sdk)
 	svc = redisprod.NewEventStoreMiddleware(svc, esClient)
