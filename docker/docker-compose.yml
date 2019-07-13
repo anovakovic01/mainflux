@@ -135,6 +135,16 @@ services:
     networks:
       - mainflux-base-net
 
+  jaeger:
+    image: jaegertracing/all-in-one:1.13
+    ports:
+      - ${MF_JAEGER_PORT}:${MF_JAEGER_PORT}/udp
+      - ${MF_JAEGER_FRONTEND}:${MF_JAEGER_FRONTEND}
+      - ${MF_JAEGER_COLLECTOR}:${MF_JAEGER_COLLECTOR}
+      - ${MF_JAEGER_CONFIGS}:${MF_JAEGER_CONFIGS}
+    networks:
+      - mainflux-base-net
+
   normalizer:
     image: mainflux/normalizer:latest
     container_name: mainflux-normalizer
