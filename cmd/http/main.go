@@ -1,5 +1,5 @@
 //
-// Copyright (c) 2018
+// Copyright (c) 2019
 // Mainflux
 //
 // SPDX-License-Identifier: Apache-2.0
@@ -9,12 +9,14 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"os"
 	"os/signal"
 	"strconv"
 	"syscall"
+	"time"
 
 	"google.golang.org/grpc/credentials"
 
@@ -26,7 +28,9 @@ import (
 	"github.com/mainflux/mainflux/logger"
 	thingsapi "github.com/mainflux/mainflux/things/api/auth/grpc"
 	broker "github.com/nats-io/go-nats"
+	opentracing "github.com/opentracing/opentracing-go"
 	stdprometheus "github.com/prometheus/client_golang/prometheus"
+	jconfig "github.com/uber/jaeger-client-go/config"
 	"google.golang.org/grpc"
 )
 
@@ -73,10 +77,16 @@ func main() {
 	conn := connectToThings(cfg, logger)
 	defer conn.Close()
 
-	cc := thingsapi.NewClient(conn)
+	tracer, closer := initJaeger("http_adapter", logger)
+	defer closer.Close()
+
+	thingsTracer, thingsCloser := initJaeger("things", logger)
+	defer thingsCloser.Close()
+
+	cc := thingsapi.NewClient(conn, thingsTracer, time.Second)
 	pub := nats.NewMessagePublisher(nc)
 
-	svc := adapter.New(pub)
+	svc := adapter.New(pub, cc)
 	svc = api.LoggingMiddleware(svc, logger)
 	svc = api.MetricsMiddleware(
 		svc,
@@ -99,7 +109,7 @@ func main() {
 	go func() {
 		p := fmt.Sprintf(":%s", cfg.port)
 		logger.Info(fmt.Sprintf("HTTP adapter service started on port %s", cfg.port))
-		errs <- http.ListenAndServe(p, api.MakeHandler(svc, cc))
+		errs <- http.ListenAndServe(p, api.MakeHandler(svc, tracer))
 	}()
 
 	go func() {
@@ -126,6 +136,26 @@ func loadConfig() config {
 		clientTLS: tls,
 		caCerts:   mainflux.Env(envCACerts, defCACerts),
 	}
+}
+
+func initJaeger(svcName string, logger logger.Logger) (opentracing.Tracer, io.Closer) {
+	tracer, closer, err := jconfig.Configuration{
+		ServiceName: svcName,
+		Sampler: &jconfig.SamplerConfig{
+			Type:  "const",
+			Param: 1,
+		},
+		Reporter: &jconfig.ReporterConfig{
+			LocalAgentHostPort: "jaeger:6831",
+			LogSpans:           true,
+		},
+	}.NewTracer()
+	if err != nil {
+		logger.Error(fmt.Sprintf("Failed to init Jaeger client: %s", err))
+		os.Exit(1)
+	}
+
+	return tracer, closer
 }
 
 func connectToThings(cfg config, logger logger.Logger) *grpc.ClientConn {
