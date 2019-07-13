@@ -9,6 +9,7 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -25,7 +26,9 @@ import (
 	"github.com/mainflux/mainflux/coap/nats"
 	logger "github.com/mainflux/mainflux/logger"
 	thingsapi "github.com/mainflux/mainflux/things/api/auth/grpc"
+	opentracing "github.com/opentracing/opentracing-go"
 	stdprometheus "github.com/prometheus/client_golang/prometheus"
+	jconfig "github.com/uber/jaeger-client-go/config"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 
@@ -78,10 +81,13 @@ func main() {
 	conn := connectToThings(cfg, logger)
 	defer conn.Close()
 
-	cc := thingsapi.NewClient(conn)
+	thingsTracer, thingsCloser := initJaeger("things", logger)
+	defer thingsCloser.Close()
+
+	cc := thingsapi.NewClient(conn, thingsTracer, time.Second)
 	respChan := make(chan string, 10000)
 	pubsub := nats.New(nc)
-	svc := coap.New(pubsub, respChan)
+	svc := coap.New(pubsub, cc, respChan)
 	svc = api.LoggingMiddleware(svc, logger)
 
 	svc = api.MetricsMiddleware(
@@ -163,6 +169,26 @@ func connectToThings(cfg config, logger logger.Logger) *grpc.ClientConn {
 		os.Exit(1)
 	}
 	return conn
+}
+
+func initJaeger(svcName string, logger logger.Logger) (opentracing.Tracer, io.Closer) {
+	tracer, closer, err := jconfig.Configuration{
+		ServiceName: svcName,
+		Sampler: &jconfig.SamplerConfig{
+			Type:  "const",
+			Param: 1,
+		},
+		Reporter: &jconfig.ReporterConfig{
+			LocalAgentHostPort: "jaeger:6831",
+			LogSpans:           true,
+		},
+	}.NewTracer()
+	if err != nil {
+		logger.Error(fmt.Sprintf("Failed to init Jaeger client: %s", err))
+		os.Exit(1)
+	}
+
+	return tracer, closer
 }
 
 func startHTTPServer(port string, logger logger.Logger, errs chan error) {
