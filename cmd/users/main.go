@@ -1,5 +1,5 @@
 //
-// Copyright (c) 2018
+// Copyright (c) 2019
 // Mainflux
 //
 // SPDX-License-Identifier: Apache-2.0
@@ -9,12 +9,15 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"log"
 	"net"
 	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
+
+	"github.com/mainflux/mainflux/users/tracing"
 
 	"google.golang.org/grpc/credentials"
 
@@ -29,7 +32,9 @@ import (
 	"github.com/mainflux/mainflux/users/bcrypt"
 	"github.com/mainflux/mainflux/users/jwt"
 	"github.com/mainflux/mainflux/users/postgres"
+	opentracing "github.com/opentracing/opentracing-go"
 	stdprometheus "github.com/prometheus/client_golang/prometheus"
+	jconfig "github.com/uber/jaeger-client-go/config"
 	"google.golang.org/grpc"
 )
 
@@ -83,14 +88,21 @@ func main() {
 	if err != nil {
 		log.Fatalf(err.Error())
 	}
+
 	db := connectToDB(cfg.dbConfig, logger)
 	defer db.Close()
 
-	svc := newService(db, cfg.secret, logger)
+	tracer, closer := initJaeger("users", logger)
+	defer closer.Close()
+
+	dbTracer, dbCloser := initJaeger("users_db", logger)
+	defer dbCloser.Close()
+
+	svc := newService(db, dbTracer, cfg.secret, logger)
 	errs := make(chan error, 2)
 
-	go startHTTPServer(svc, cfg.httpPort, cfg.serverCert, cfg.serverKey, logger, errs)
-	go startGRPCServer(svc, cfg.grpcPort, cfg.serverCert, cfg.serverKey, logger, errs)
+	go startHTTPServer(tracer, svc, cfg.httpPort, cfg.serverCert, cfg.serverKey, logger, errs)
+	go startGRPCServer(tracer, svc, cfg.grpcPort, cfg.serverCert, cfg.serverKey, logger, errs)
 
 	go func() {
 		c := make(chan os.Signal)
@@ -127,6 +139,26 @@ func loadConfig() config {
 	}
 }
 
+func initJaeger(svcName string, logger logger.Logger) (opentracing.Tracer, io.Closer) {
+	tracer, closer, err := jconfig.Configuration{
+		ServiceName: svcName,
+		Sampler: &jconfig.SamplerConfig{
+			Type:  "const",
+			Param: 1,
+		},
+		Reporter: &jconfig.ReporterConfig{
+			LocalAgentHostPort: "jaeger:6831",
+			LogSpans:           true,
+		},
+	}.NewTracer()
+	if err != nil {
+		logger.Error(fmt.Sprintf("Failed to init Jaeger: %s", err))
+		os.Exit(1)
+	}
+
+	return tracer, closer
+}
+
 func connectToDB(dbConfig postgres.Config, logger logger.Logger) *sqlx.DB {
 	db, err := postgres.Connect(dbConfig)
 	if err != nil {
@@ -136,8 +168,8 @@ func connectToDB(dbConfig postgres.Config, logger logger.Logger) *sqlx.DB {
 	return db
 }
 
-func newService(db *sqlx.DB, secret string, logger logger.Logger) users.Service {
-	repo := postgres.New(db)
+func newService(db *sqlx.DB, tracer opentracing.Tracer, secret string, logger logger.Logger) users.Service {
+	repo := tracing.UserRepositoryMiddleware(postgres.New(db), tracer)
 	hasher := bcrypt.New()
 	idp := jwt.New(secret)
 
@@ -161,18 +193,18 @@ func newService(db *sqlx.DB, secret string, logger logger.Logger) users.Service 
 	return svc
 }
 
-func startHTTPServer(svc users.Service, port string, certFile string, keyFile string, logger logger.Logger, errs chan error) {
+func startHTTPServer(tracer opentracing.Tracer, svc users.Service, port string, certFile string, keyFile string, logger logger.Logger, errs chan error) {
 	p := fmt.Sprintf(":%s", port)
 	if certFile != "" || keyFile != "" {
 		logger.Info(fmt.Sprintf("Users service started using https, cert %s key %s, exposed port %s", certFile, keyFile, port))
-		errs <- http.ListenAndServeTLS(p, certFile, keyFile, httpapi.MakeHandler(svc, logger))
+		errs <- http.ListenAndServeTLS(p, certFile, keyFile, httpapi.MakeHandler(svc, tracer, logger))
 	} else {
 		logger.Info(fmt.Sprintf("Users service started using http, exposed port %s", port))
-		errs <- http.ListenAndServe(p, httpapi.MakeHandler(svc, logger))
+		errs <- http.ListenAndServe(p, httpapi.MakeHandler(svc, tracer, logger))
 	}
 }
 
-func startGRPCServer(svc users.Service, port string, certFile string, keyFile string, logger logger.Logger, errs chan error) {
+func startGRPCServer(tracer opentracing.Tracer, svc users.Service, port string, certFile string, keyFile string, logger logger.Logger, errs chan error) {
 	p := fmt.Sprintf(":%s", port)
 	listener, err := net.Listen("tcp", p)
 	if err != nil {
@@ -193,7 +225,7 @@ func startGRPCServer(svc users.Service, port string, certFile string, keyFile st
 		server = grpc.NewServer()
 	}
 
-	mainflux.RegisterUsersServiceServer(server, grpcapi.NewServer(svc))
+	mainflux.RegisterUsersServiceServer(server, grpcapi.NewServer(tracer, svc))
 	logger.Info(fmt.Sprintf("Users gRPC service started, exposed port %s", port))
 	errs <- server.Serve(listener)
 }

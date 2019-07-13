@@ -1,5 +1,5 @@
 //
-// Copyright (c) 2018
+// Copyright (c) 2019
 // Mainflux
 //
 // SPDX-License-Identifier: Apache-2.0
@@ -9,7 +9,10 @@ package grpc
 
 import (
 	"github.com/go-kit/kit/endpoint"
+	kitot "github.com/go-kit/kit/tracing/opentracing"
 	kitgrpc "github.com/go-kit/kit/transport/grpc"
+	opentracing "github.com/opentracing/opentracing-go"
+
 	"github.com/mainflux/mainflux"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
@@ -22,15 +25,15 @@ type grpcClient struct {
 }
 
 // NewClient returns new gRPC client instance.
-func NewClient(conn *grpc.ClientConn) mainflux.UsersServiceClient {
-	endpoint := kitgrpc.NewClient(
+func NewClient(tracer opentracing.Tracer, conn *grpc.ClientConn) mainflux.UsersServiceClient {
+	endpoint := kitot.TraceClient(tracer, "identify")(kitgrpc.NewClient(
 		conn,
 		"mainflux.UsersService",
 		"Identify",
 		encodeIdentifyRequest,
 		decodeIdentifyResponse,
 		mainflux.UserID{},
-	).Endpoint()
+	).Endpoint())
 
 	return &grpcClient{endpoint}
 }
