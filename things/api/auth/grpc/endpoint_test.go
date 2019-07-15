@@ -85,14 +85,14 @@ func TestCanAccess(t *testing.T) {
 }
 
 func TestCanAccessByID(t *testing.T) {
-	oth, _ := svc.AddThing(token, thing)
-	cth, _ := svc.AddThing(token, thing)
-	sch, _ := svc.CreateChannel(token, channel)
-	svc.Connect(token, sch.ID, cth.ID)
+	oth, _ := svc.AddThing(context.Background(), token, thing)
+	cth, _ := svc.AddThing(context.Background(), token, thing)
+	sch, _ := svc.CreateChannel(context.Background(), token, channel)
+	svc.Connect(context.Background(), token, sch.ID, cth.ID)
 
 	usersAddr := fmt.Sprintf("localhost:%d", port)
 	conn, _ := grpc.Dial(usersAddr, grpc.WithInsecure())
-	cli := grpcapi.NewClient(conn)
+	cli := grpcapi.NewClient(conn, mocktracer.New(), time.Second)
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 

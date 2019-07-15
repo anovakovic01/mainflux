@@ -323,7 +323,7 @@ func (cr channelRepository) HasThing(_ context.Context, chanID, key string) (str
 	return thingID, nil
 }
 
-func (cr channelRepository) HasThingByID(chanID, thingID string) error {
+func (cr channelRepository) HasThingByID(_ context.Context, chanID, thingID string) error {
 	return cr.hasThing(chanID, thingID)
 }
 

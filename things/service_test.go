@@ -839,9 +839,9 @@ func TestCanAccess(t *testing.T) {
 func TestCanAccessByID(t *testing.T) {
 	svc := newService(map[string]string{token: email})
 
-	sth, _ := svc.AddThing(token, thing)
-	sch, _ := svc.CreateChannel(token, channel)
-	svc.Connect(token, sch.ID, sth.ID)
+	sth, _ := svc.AddThing(context.Background(), token, thing)
+	sch, _ := svc.CreateChannel(context.Background(), token, channel)
+	svc.Connect(context.Background(), token, sch.ID, sth.ID)
 
 	cases := map[string]struct {
 		thingID string
@@ -866,7 +866,7 @@ func TestCanAccessByID(t *testing.T) {
 	}
 
 	for desc, tc := range cases {
-		err := svc.CanAccessByID(tc.channel, tc.thingID)
+		err := svc.CanAccessByID(context.Background(), tc.channel, tc.thingID)
 		assert.Equal(t, tc.err, err, fmt.Sprintf("%s: expected %s got %s\n", desc, tc.err, err))
 	}
 }

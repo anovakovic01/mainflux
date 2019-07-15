@@ -611,7 +611,7 @@ func TestHasThingByID(t *testing.T) {
 		Owner: email,
 		Key:   thkey,
 	}
-	thingID, _ := thingRepo.Save(thing)
+	thingID, _ := thingRepo.Save(context.Background(), thing)
 
 	disconnectedThID, err := uuid.New().ID()
 	require.Nil(t, err, fmt.Sprintf("got unexpected error: %s", err))
@@ -623,16 +623,16 @@ func TestHasThingByID(t *testing.T) {
 		Owner: email,
 		Key:   disconnectedThKey,
 	}
-	disconnectedThingID, _ := thingRepo.Save(disconnectedThing)
+	disconnectedThingID, _ := thingRepo.Save(context.Background(), disconnectedThing)
 
 	chanRepo := postgres.NewChannelRepository(db)
 	chid, err := uuid.New().ID()
 	require.Nil(t, err, fmt.Sprintf("got unexpected error: %s", err))
-	chanID, _ := chanRepo.Save(things.Channel{
+	chanID, _ := chanRepo.Save(context.Background(), things.Channel{
 		ID:    chid,
 		Owner: email,
 	})
-	chanRepo.Connect(email, chanID, thingID)
+	chanRepo.Connect(context.Background(), email, chanID, thingID)
 
 	nonexistentChanID, err := uuid.New().ID()
 	require.Nil(t, err, fmt.Sprintf("got unexpected error: %s", err))
@@ -665,7 +665,7 @@ func TestHasThingByID(t *testing.T) {
 	}
 
 	for desc, tc := range cases {
-		err := chanRepo.HasThingByID(tc.chanID, tc.thingID)
+		err := chanRepo.HasThingByID(context.Background(), tc.chanID, tc.thingID)
 		hasAccess := err == nil
 		assert.Equal(t, tc.hasAccess, hasAccess, fmt.Sprintf("%s: expected %t got %t\n", desc, tc.hasAccess, hasAccess))
 	}

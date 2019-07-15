@@ -221,7 +221,7 @@ func (crm *channelRepositoryMock) HasThing(_ context.Context, chanID, token stri
 	return tid, nil
 }
 
-func (crm *channelRepositoryMock) HasThingByID(chanID, thingID string) error {
+func (crm *channelRepositoryMock) HasThingByID(_ context.Context, chanID, thingID string) error {
 	chans, ok := crm.cconns[thingID]
 	if !ok {
 		return things.ErrNotFound
