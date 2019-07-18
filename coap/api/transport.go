@@ -223,8 +223,7 @@ func receive(svc coap.Service, msg *gocoap.Message) *gocoap.Message {
 
 	ct, err := contentType(msg)
 	if err != nil {
-		res.Code = gocoap.BadRequest
-		return res
+		ct = mainflux.SenMLJSON
 	}
 
 	publisher, err := authorize(msg, res, chanID)
