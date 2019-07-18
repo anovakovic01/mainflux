@@ -28,7 +28,9 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-const protocol = "ws"
+const (
+	protocol = "ws"
+)
 
 var (
 	errUnauthorizedAccess = errors.New("missing or invalid credentials provided")
@@ -47,6 +49,10 @@ var (
 	logger            log.Logger
 	channelPartRegExp = regexp.MustCompile(`^/channels/([\w\-]+)/messages(/[^?]*)?(\?.*)?$`)
 )
+
+var contentTypes = map[string]int{
+	mainflux.SenMLCBOR: websocket.BinaryMessage,
+}
 
 // MakeHandler returns http handler with handshake endpoint.
 func MakeHandler(svc ws.Service, tc mainflux.ThingsServiceClient, l log.Logger) http.Handler {
@@ -77,7 +83,7 @@ func handshake(svc ws.Service) http.HandlerFunc {
 			}
 		}
 
-		ct, format := contentType(r)
+		ct := contentType(r)
 
 		channelParts := channelPartRegExp.FindStringSubmatch(r.RequestURI)
 		if len(channelParts) < 2 {
@@ -110,7 +116,7 @@ func handshake(svc ws.Service) http.HandlerFunc {
 		go sub.listen()
 
 		// Start listening for messages from NATS.
-		go sub.broadcast(svc, ct, format)
+		go sub.broadcast(svc, ct)
 	}
 }
 
@@ -178,33 +184,17 @@ func authorize(r *http.Request) (subscription, error) {
 	return sub, nil
 }
 
-func contentType(r *http.Request) (string, string) {
-	ctval := r.Header.Get("Content-Type")
-	if ctval == "" {
+func contentType(r *http.Request) string {
+	ct := r.Header.Get("Content-Type")
+	if ct == "" {
 		ctvals := bone.GetQuery(r, "content-type")
 		if len(ctvals) == 0 {
-			return string(mainflux.SenMLJSON), mainflux.Text
+			return string(mainflux.SenMLJSON)
 		}
+		ct = ctvals[0]
 	}
 
-	suffix := ""
-	switch {
-	case strings.HasSuffix(ctval, mainflux.Binary):
-		suffix = mainflux.Binary
-	case strings.HasSuffix(ctval, mainflux.Text):
-		suffix = mainflux.Text
-	}
-
-	ct := strings.TrimSuffix(ctval, fmt.Sprintf("/%s", suffix))
-	if ct == ctval {
-		suffix = ""
-	}
-
-	if suffix == "" {
-		return ct, mainflux.Types[ct]
-	}
-
-	return ct, suffix
+	return ct
 }
 
 type subscription struct {
@@ -215,7 +205,7 @@ type subscription struct {
 	channel  *ws.Channel
 }
 
-func (sub subscription) broadcast(svc ws.Service, contentType, format string) {
+func (sub subscription) broadcast(svc ws.Service, contentType string) {
 	for {
 		_, payload, err := sub.conn.ReadMessage()
 		if websocket.IsUnexpectedCloseError(err) {
@@ -230,7 +220,6 @@ func (sub subscription) broadcast(svc ws.Service, contentType, format string) {
 			Channel:     sub.chanID,
 			Subtopic:    sub.subtopic,
 			ContentType: contentType,
-			Format:      format,
 			Publisher:   sub.pubID,
 			Protocol:    protocol,
 			Payload:     payload,
@@ -248,9 +237,9 @@ func (sub subscription) broadcast(svc ws.Service, contentType, format string) {
 
 func (sub subscription) listen() {
 	for msg := range sub.channel.Messages {
-		format := websocket.TextMessage
-		if msg.Format == mainflux.Binary {
-			format = websocket.BinaryMessage
+		format, ok := contentTypes[msg.ContentType]
+		if !ok {
+			format = websocket.TextMessage
 		}
 
 		if err := sub.conn.WriteMessage(format, msg.Payload); err != nil {

@@ -10,7 +10,6 @@ package api
 import (
 	"context"
 	"errors"
-	"fmt"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -111,25 +110,9 @@ func decodeRequest(ctx context.Context, r *http.Request) (interface{}, error) {
 		return nil, err
 	}
 
-	ctval := r.Header.Get("Content-Type")
-
-	suffix := ""
-	switch {
-	case strings.HasSuffix(ctval, mainflux.Binary):
-		suffix = mainflux.Binary
-	case strings.HasSuffix(ctval, mainflux.Text):
-		suffix = mainflux.Text
-	}
-
-	ct := strings.TrimSuffix(ctval, fmt.Sprintf("/%s", suffix))
-	if ct == ctval {
-		suffix = ""
-	}
-
 	msg := mainflux.RawMessage{
 		Protocol:    protocol,
-		ContentType: ct,
-		Format:      suffix,
+		ContentType: r.Header.Get("Content-Type"),
 		Channel:     chanID,
 		Subtopic:    subtopic,
 		Payload:     payload,

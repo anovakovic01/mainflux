@@ -33,6 +33,7 @@ import (
 const (
 	protocol                   = "coap"
 	senMLJSON gocoap.MediaType = 110
+	senMLCBOR gocoap.MediaType = 112
 )
 
 var (
@@ -226,10 +227,6 @@ func receive(svc coap.Service, msg *gocoap.Message) *gocoap.Message {
 		return res
 	}
 
-	f := format(msg, ct)
-
-	subtopic = strings.TrimSuffix(subtopic, fmt.Sprintf("/%s", f))
-
 	publisher, err := authorize(msg, res, chanID)
 	if err != nil {
 		res.Code = gocoap.Forbidden
@@ -240,7 +237,6 @@ func receive(svc coap.Service, msg *gocoap.Message) *gocoap.Message {
 		Channel:     chanID,
 		Subtopic:    subtopic,
 		Publisher:   publisher,
-		Format:      f,
 		ContentType: ct,
 		Protocol:    protocol,
 		Payload:     msg.Payload,
@@ -340,9 +336,15 @@ func handleMessage(conn *net.UDPConn, addr *net.UDPAddr, o *coap.Observer, msg *
 
 		observeVal := buff.Bytes()
 		notifyMsg.SetOption(gocoap.Observe, observeVal[len(observeVal)-3:])
-		if msg.ContentType == mainflux.SenMLJSON {
-			notifyMsg.SetOption(gocoap.ContentFormat, senMLJSON)
+
+		coapCT := senMLJSON
+		switch msg.ContentType {
+		case mainflux.SenMLJSON:
+			coapCT = senMLJSON
+		case mainflux.SenMLCBOR:
+			coapCT = senMLCBOR
 		}
+		notifyMsg.SetOption(gocoap.ContentFormat, coapCT)
 
 		if err := gocoap.Transmit(conn, addr, notifyMsg); err != nil {
 			logger.Warn(fmt.Sprintf("Failed to send message to observer: %s", err))
@@ -396,44 +398,12 @@ func contentType(msg *gocoap.Message) (string, error) {
 	}
 
 	ct := ""
-	if ctid == senMLJSON {
+	switch ctid {
+	case senMLJSON:
 		ct = mainflux.SenMLJSON
+	case senMLCBOR:
+		ct = mainflux.SenMLCBOR
 	}
 
 	return ct, nil
-}
-
-func format(msg *gocoap.Message, contentType string) string {
-	f := ""
-	// Message Format is passed as Uri-Query parameter, which option ID is 15 (0xf).
-	query := msg.Option(gocoap.URIQuery)
-	queryStr, ok := query.(string)
-	if !ok {
-		f = ""
-	}
-
-	params, err := url.ParseQuery(queryStr)
-	if err != nil {
-		f = ""
-	}
-
-	formats, ok := params["format"]
-	if !ok {
-		f = ""
-	}
-
-	if len(formats) == 1 {
-		f = formats[0]
-	}
-
-	if f == "" {
-		fmt, ok := mainflux.Types[contentType]
-		if !ok {
-			return mainflux.Text
-		}
-
-		f = fmt
-	}
-
-	return f
 }

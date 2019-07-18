@@ -15,8 +15,7 @@ message RawMessage {
 	string publisher   = 3;
 	string protocol    = 4;
 	string contentType = 5;
-	string format      = 6;
-	bytes  payload     = 7;
+	bytes  payload     = 6;
 }
 
 // Message represents a resolved (normalized) raw message.
