@@ -38,10 +38,6 @@ var config = {
         auth_url: process.env.MF_THINGS_URL || 'localhost:8181',
         schema_dir: process.argv[2] || '.',
     },
-    formats = {
-        'application/senml+json': 'text',
-        'application/senml+cbor': 'binary'
-    },
     logger = bunyan.createLogger({name: 'mqtt', level: config.log_level}),
     packageDefinition = protoLoader.loadSync(
         config.schema_dir + '/internal.proto',
@@ -197,7 +193,6 @@ aedes.authorizePublish = function (client, packet, publish) {
                     publisher: client.thingId,
                     channel: channelId,
                     subtopic: st.join('.'),
-                    format: format,
                     contentType: contentType,
                     protocol: 'mqtt',
                     payload: packet.payload
