@@ -174,14 +174,13 @@ aedes.authorizePublish = function (client, packet, publish) {
     }
 
     var contentType = 'application/senml+json',
-        last = elements[elements.length - 1],
         st = elements;
     
-    if (elements.length > 0) {
-        // Decode and read content type from subtopic.
-        contentType = last.replace('_', '/').replace('-', '+');
-        st = elements.slice(0, elements.length - 1);
-        parts = parts.slice(0, parts.length - 1);
+    if (elements.length > 1 && elements[elements.length - 2] === 'ct') {
+        // If there is ct prefix, read and decode content type.
+        contentType = elements[elements.length - 1].replace('_', '/').replace('-', '+');
+        st = elements.slice(0, elements.length - 2);
+        parts = parts.slice(0, parts.length - 2);
     }
     packet.topic = parts.join('/');
 

@@ -51,6 +51,7 @@ var (
 )
 
 var contentTypes = map[string]int{
+	mainflux.SenMLJSON: websocket.TextMessage,
 	mainflux.SenMLCBOR: websocket.BinaryMessage,
 }
 
@@ -189,7 +190,7 @@ func contentType(r *http.Request) string {
 	if ct == "" {
 		ctvals := bone.GetQuery(r, "content-type")
 		if len(ctvals) == 0 {
-			return string(mainflux.SenMLJSON)
+			return mainflux.SenMLJSON
 		}
 		ct = ctvals[0]
 	}
