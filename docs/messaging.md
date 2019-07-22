@@ -68,11 +68,14 @@ mosquitto_sub -u <thing_id> -P <thing_key> -t channels/<channel_id>/messages -h 
 ```
 
 In order to pass content type as part of topic, one should append it to the end
-of an existing topic. If you want to use standard topic such as `channels/<channel_id>/messages`
-with SenML content type, you should use following topic `channels/<channel_id>/messages/application_senml-json`.
-Content type will be removed from topic under the hood. You should pass content type only 
-when you're publishing a message. Characters like `_` and `-` in the content type will be
-replaced with `/` and `+` respectively.
+of an existing topic. Content type value should always be prefixed with `/ct/`.
+If you want to use standard topic such as `channels/<channel_id>/messages`
+with SenML content type, you should use following topic `channels/<channel_id>/messages/ct/application_senml-json`.
+If there is no `/ct/` prefix in the subtopic, then content type will have the 
+default value which is `application/senml+json`. Content type will be removed from
+the topic under the hood. You should pass content type only when you're publishing
+a message. Characters like `_` and `-` in the content type will be replaced with `/`
+and `+` respectively.
 
 If you are using TLS to secure MQTT connection, add `--cafile docker/ssl/certs/ca.crt`
 to every command.
