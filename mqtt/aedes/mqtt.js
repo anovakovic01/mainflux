@@ -36,14 +36,15 @@ var config = {
         client_tls: (process.env.MF_MQTT_ADAPTER_CLIENT_TLS == 'true') || false,
         ca_certs: process.env.MF_MQTT_ADAPTER_CA_CERTS || '',
         concurrency: Number(process.env.MF_MQTT_CONCURRENT_MESSAGES) || 100,
-        auth_url: process.env.MF_THINGS_URL || 'localhost:8181',
+        authn_url: process.env.MF_THINGS_URL || 'localhost:8181',
+        authz_url: process.env.MF_AUTHZ_URL || 'localhost:8181',
         schema_dir: process.argv[2] || '.',
     },
     logger = bunyan.createLogger({
         name: 'mqtt',
         level: config.log_level
     }),
-    packageDefinition = protoLoader.loadSync(
+    authnDefinition = protoLoader.loadSync(
         config.schema_dir + '/internal.proto', {
             keepCase: true,
             longs: String,
@@ -52,8 +53,19 @@ var config = {
             oneofs: true
         }
     ),
-    protoDescriptor = grpc.loadPackageDefinition(packageDefinition),
-    thingsSchema = protoDescriptor.mainflux,
+    authnDescriptor = grpc.loadPackageDefinition(authnDefinition),
+    authnSchema = authnDescriptor.mainflux,
+    authzDefinition = protoLoader.loadSync(
+        config.schema_dir + '/authz.proto', {
+            keepCase: true,
+            longs: String,
+            enums: String,
+            defaults: true,
+            oneofs: true
+        }
+    ),
+    authzDescriptor = grpc.loadPackageDefinition(authzDefinition),
+    authzSchema = authzDescriptor.authz,
     messagesSchema = new protobuf.Root().loadSync(config.schema_dir + '/message.proto'),
     Message = messagesSchema.lookupType('mainflux.Message'),
     nats = require('nats').connect({
@@ -81,14 +93,23 @@ var config = {
         persistence: aedesRedis,
         concurrency: config.concurrency
     }),
-    things = (function () {
+    authn = (function () {
         var certs;
         if (config.client_tls) {
             certs = grpc.credentials.createSsl(config.ca_certs);
         } else {
             certs = grpc.credentials.createInsecure();
         }
-        return new thingsSchema.ThingsService(config.auth_url, certs);
+        return new authnSchema.ThingsService(config.authn_url, certs);
+    })(),
+    authz = (function () {
+        var certs;
+        if (config.client_tls) {
+            certs = grpc.credentials.createSsl(config.ca_certs);
+        } else {
+            certs = grpc.credentials.createInsecure();
+        }
+        return new authzSchema.AuthZService(config.authz_url, certs);
     })(),
     esclient = redis.createClient({
         port: config.es_port,
@@ -174,9 +195,10 @@ aedes.authorizePublish = function (client, packet, publish) {
         return;
     }
     var channelId = channel[1],
-        accessReq = {
-            token: client.password,
-            chanID: channelId
+        authReq = {
+            sub: client.thingId,
+            obj: channelId,
+            act: 'write'
         },
         // Parse unlimited subtopics
         baseLength = 3, // First 3 elements which represents the base part of topic.
@@ -207,7 +229,7 @@ aedes.authorizePublish = function (client, packet, publish) {
     var channelTopic = st.length ? baseTopic + '.' + st.join('.') : baseTopic,
         onAuthorize = function (err, res) {
             var msg;
-            if (!err) {
+            if (!err && !res.err) {
                 msg = Message.encode({
                     publisher: client.thingId,
                     channel: channelId,
@@ -221,12 +243,17 @@ aedes.authorizePublish = function (client, packet, publish) {
 
                 publish(null);
             } else {
-                logger.warn('unauthorized publish: %s', err.message);
-                publish(err); // Bad username or password
+                if (err) {
+                    logger.warn('unauthorized publish: %s', err.message);
+                    publish(err); // Bad username or password
+                } else {
+                    logger.warn('unauthorized publish: %s', res.err);
+                    publish(res.err); // Bad username or password
+                }
             }
         };
 
-    things.CanAccessByKey(accessReq, onAuthorize);
+    authz.Authorize(authReq, onAuthorize);
 };
 
 
@@ -239,9 +266,10 @@ aedes.authorizeSubscribe = function (client, packet, subscribe) {
         return;
     }
     var channelId = channel[1],
-        accessReq = {
-            token: client.password,
-            chanID: channelId
+        authReq = {
+            sub: client.thingId,
+            obj: channelId,
+            act: 'read',
         },
         onAuthorize = function (err, res) {
             if (!err) {
@@ -252,7 +280,7 @@ aedes.authorizeSubscribe = function (client, packet, subscribe) {
             }
         };
 
-    things.CanAccessByKey(accessReq, onAuthorize);
+    authz.Authorize(authReq, onAuthorize);
 };
 
 aedes.authenticate = function (client, username, password, acknowledge) {
@@ -274,7 +302,7 @@ aedes.authenticate = function (client, username, password, acknowledge) {
             }
         };
 
-    things.identify(identity, onIdentify);
+    authn.identify(identity, onIdentify);
 };
 
 aedes.on('clientDisconnect', function (client) {

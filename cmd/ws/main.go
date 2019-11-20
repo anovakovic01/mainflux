@@ -17,6 +17,7 @@ import (
 
 	kitprometheus "github.com/go-kit/kit/metrics/prometheus"
 	"github.com/mainflux/mainflux"
+	authzgrpc "github.com/mainflux/mainflux/authz/api/grpc"
 	"github.com/mainflux/mainflux/logger"
 	thingsapi "github.com/mainflux/mainflux/things/api/auth/grpc"
 	adapter "github.com/mainflux/mainflux/ws"
@@ -39,6 +40,7 @@ const (
 	defThingsURL     = "localhost:8181"
 	defJaegerURL     = ""
 	defThingsTimeout = "1" // in seconds
+	defAuthzURL      = "localhost:8181"
 
 	envClientTLS     = "MF_WS_ADAPTER_CLIENT_TLS"
 	envCACerts       = "MF_WS_ADAPTER_CA_CERTS"
@@ -48,6 +50,7 @@ const (
 	envThingsURL     = "MF_THINGS_URL"
 	envJaegerURL     = "MF_JAEGER_URL"
 	envThingsTimeout = "MF_WS_ADAPTER_THINGS_TIMEOUT"
+	envAuthzURL      = "MF_AUTHZ_URL"
 )
 
 type config struct {
@@ -59,6 +62,7 @@ type config struct {
 	port          string
 	jaegerURL     string
 	thingsTimeout time.Duration
+	authzURL      string
 }
 
 func main() {
@@ -76,13 +80,21 @@ func main() {
 	}
 	defer nc.Close()
 
-	conn := connectToThings(cfg, logger)
-	defer conn.Close()
+	thingsConn := connectToGRPC(cfg, cfg.thingsURL, logger)
+	defer thingsConn.Close()
 
 	thingsTracer, thingsCloser := initJaeger("things", cfg.jaegerURL, logger)
 	defer thingsCloser.Close()
 
-	cc := thingsapi.NewClient(conn, thingsTracer, cfg.thingsTimeout)
+	authzConn := connectToGRPC(cfg, cfg.authzURL, logger)
+	defer authzConn.Close()
+
+	authzTracer, authzCloser := initJaeger("authz", cfg.jaegerURL, logger)
+	defer authzCloser.Close()
+
+	authz := authzgrpc.NewClient(authzConn, authzTracer)
+
+	cc := thingsapi.NewClient(thingsConn, thingsTracer, cfg.thingsTimeout)
 	pubsub := nats.New(nc, logger)
 	svc := newService(pubsub, logger)
 
@@ -91,7 +103,7 @@ func main() {
 	go func() {
 		p := fmt.Sprintf(":%s", cfg.port)
 		logger.Info(fmt.Sprintf("WebSocket adapter service started, exposed port %s", cfg.port))
-		errs <- http.ListenAndServe(p, api.MakeHandler(svc, cc, logger))
+		errs <- http.ListenAndServe(p, api.MakeHandler(svc, authz, cc, logger))
 	}()
 
 	go func() {
@@ -124,10 +136,11 @@ func loadConfig() config {
 		port:          mainflux.Env(envPort, defPort),
 		jaegerURL:     mainflux.Env(envJaegerURL, defJaegerURL),
 		thingsTimeout: time.Duration(timeout) * time.Second,
+		authzURL:      mainflux.Env(envAuthzURL, defAuthzURL),
 	}
 }
 
-func connectToThings(cfg config, logger logger.Logger) *grpc.ClientConn {
+func connectToGRPC(cfg config, url string, logger logger.Logger) *grpc.ClientConn {
 	var opts []grpc.DialOption
 	if cfg.clientTLS {
 		if cfg.caCerts != "" {
@@ -143,9 +156,9 @@ func connectToThings(cfg config, logger logger.Logger) *grpc.ClientConn {
 		opts = append(opts, grpc.WithInsecure())
 	}
 
-	conn, err := grpc.Dial(cfg.thingsURL, opts...)
+	conn, err := grpc.Dial(url, opts...)
 	if err != nil {
-		logger.Error(fmt.Sprintf("Failed to connect to things service: %s", err))
+		logger.Error(fmt.Sprintf("Failed to connect to %s service: %s", url, err))
 		os.Exit(1)
 	}
 	return conn

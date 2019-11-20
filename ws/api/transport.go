@@ -16,18 +16,15 @@ import (
 	"github.com/go-zoo/bone"
 	"github.com/gorilla/websocket"
 	"github.com/mainflux/mainflux"
+	"github.com/mainflux/mainflux/authz"
 	log "github.com/mainflux/mainflux/logger"
 	"github.com/mainflux/mainflux/things"
 	"github.com/mainflux/mainflux/transformers/senml"
 	"github.com/mainflux/mainflux/ws"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 )
 
-const (
-	protocol = "ws"
-)
+const protocol = "ws"
 
 var (
 	errUnauthorizedAccess = errors.New("missing or invalid credentials provided")
@@ -42,7 +39,6 @@ var (
 			return true
 		},
 	}
-	auth              mainflux.ThingsServiceClient
 	logger            log.Logger
 	channelPartRegExp = regexp.MustCompile(`^/channels/([\w\-]+)/messages(/[^?]*)?(\?.*)?$`)
 )
@@ -52,23 +48,31 @@ var contentTypes = map[string]int{
 	senml.CBOR: websocket.BinaryMessage,
 }
 
+type server struct {
+	authz authz.Service
+	authn mainflux.ThingsServiceClient
+}
+
 // MakeHandler returns http handler with handshake endpoint.
-func MakeHandler(svc ws.Service, tc mainflux.ThingsServiceClient, l log.Logger) http.Handler {
-	auth = tc
+func MakeHandler(svc ws.Service, az authz.Service, tc mainflux.ThingsServiceClient, l log.Logger) http.Handler {
 	logger = l
+	s := server{
+		authz: az,
+		authn: tc,
+	}
 
 	mux := bone.New()
-	mux.GetFunc("/channels/:id/messages", handshake(svc))
-	mux.GetFunc("/channels/:id/messages/*", handshake(svc))
+	mux.GetFunc("/channels/:id/messages", s.handshake(svc))
+	mux.GetFunc("/channels/:id/messages/*", s.handshake(svc))
 	mux.GetFunc("/version", mainflux.Version("websocket"))
 	mux.Handle("/metrics", promhttp.Handler())
 
 	return mux
 }
 
-func handshake(svc ws.Service) http.HandlerFunc {
+func (s server) handshake(svc ws.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		sub, err := authorize(r)
+		sub, err := s.authorize(r)
 		if err != nil {
 			switch err {
 			case things.ErrUnauthorizedAccess:
@@ -154,7 +158,7 @@ func parseSubtopic(subtopic string) (string, error) {
 	return subtopic, nil
 }
 
-func authorize(r *http.Request) (subscription, error) {
+func (s server) authorize(r *http.Request) (subscription, error) {
 	authKey := r.Header.Get("Authorization")
 	if authKey == "" {
 		authKeys := bone.GetQuery(r, "authorization")
@@ -165,24 +169,30 @@ func authorize(r *http.Request) (subscription, error) {
 		authKey = authKeys[0]
 	}
 
-	chanID := bone.GetValue(r, "id")
+	chid := bone.GetValue(r, "id")
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 
-	id, err := auth.CanAccessByKey(ctx, &mainflux.AccessByKeyReq{Token: authKey, ChanID: chanID})
+	id, err := s.authn.Identify(ctx, &mainflux.Token{Value: authKey})
 	if err != nil {
-		e, ok := status.FromError(err)
-		if ok && e.Code() == codes.PermissionDenied {
-			return subscription{}, things.ErrUnauthorizedAccess
-		}
-		return subscription{}, err
+		return subscription{}, things.ErrUnauthorizedAccess
 	}
-	logger.Debug(fmt.Sprintf("Successfully authorized client %s on channel %s", id.GetValue(), chanID))
+	thid := id.GetValue()
+
+	p := authz.Policy{
+		Subject: thid,
+		Object:  chid,
+		Action:  "read",
+	}
+	if err := s.authz.Authorize(ctx, p); err != nil {
+		return subscription{}, things.ErrUnauthorizedAccess
+	}
+	logger.Debug(fmt.Sprintf("Successfully authorized client %s on channel %s", thid, chid))
 
 	sub := subscription{
-		pubID:  id.GetValue(),
-		chanID: chanID,
+		pubID:  thid,
+		chanID: chid,
 	}
 
 	return sub, nil

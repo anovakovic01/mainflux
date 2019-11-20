@@ -12,6 +12,7 @@ FROM node:10.15.1-alpine
 ## Copy built node modules and binaries without including the toolchain
 COPY --from=builder node_modules/ ./node_modules
 COPY *.proto mqtt/* ./
+COPY authz/api/pb/*.proto mqtt/* ./
 
 EXPOSE 1883 8880
 

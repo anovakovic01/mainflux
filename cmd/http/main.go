@@ -19,6 +19,7 @@ import (
 
 	kitprometheus "github.com/go-kit/kit/metrics/prometheus"
 	"github.com/mainflux/mainflux"
+	authzgrpc "github.com/mainflux/mainflux/authz/api/grpc"
 	adapter "github.com/mainflux/mainflux/http"
 	"github.com/mainflux/mainflux/http/api"
 	"github.com/mainflux/mainflux/http/nats"
@@ -40,6 +41,7 @@ const (
 	defThingsURL     = "localhost:8181"
 	defJaegerURL     = ""
 	defThingsTimeout = "1" // in seconds
+	defAuthzURL      = "localhost:8181"
 
 	envClientTLS     = "MF_HTTP_ADAPTER_CLIENT_TLS"
 	envCACerts       = "MF_HTTP_ADAPTER_CA_CERTS"
@@ -49,6 +51,7 @@ const (
 	envThingsURL     = "MF_THINGS_URL"
 	envJaegerURL     = "MF_JAEGER_URL"
 	envThingsTimeout = "MF_HTTP_ADAPTER_THINGS_TIMEOUT"
+	envAuthzURL      = "MF_AUTHZ_URL"
 )
 
 type config struct {
@@ -60,6 +63,7 @@ type config struct {
 	caCerts       string
 	jaegerURL     string
 	thingsTimeout time.Duration
+	authzURL      string
 }
 
 func main() {
@@ -78,8 +82,8 @@ func main() {
 	}
 	defer nc.Close()
 
-	conn := connectToThings(cfg, logger)
-	defer conn.Close()
+	thingsConn := connectToGRPC(cfg, cfg.thingsURL, logger)
+	defer thingsConn.Close()
 
 	tracer, closer := initJaeger("http_adapter", cfg.jaegerURL, logger)
 	defer closer.Close()
@@ -87,10 +91,18 @@ func main() {
 	thingsTracer, thingsCloser := initJaeger("things", cfg.jaegerURL, logger)
 	defer thingsCloser.Close()
 
-	cc := thingsapi.NewClient(conn, thingsTracer, cfg.thingsTimeout)
+	cc := thingsapi.NewClient(thingsConn, thingsTracer, cfg.thingsTimeout)
 	pub := nats.NewMessagePublisher(nc)
 
-	svc := adapter.New(pub, cc)
+	authzConn := connectToGRPC(cfg, cfg.authzURL, logger)
+	defer authzConn.Close()
+
+	authzTracer, authzCloser := initJaeger("authz", cfg.jaegerURL, logger)
+	defer authzCloser.Close()
+
+	authz := authzgrpc.NewClient(authzConn, authzTracer)
+
+	svc := adapter.New(pub, authz, cc)
 	svc = api.LoggingMiddleware(svc, logger)
 	svc = api.MetricsMiddleware(
 		svc,
@@ -146,6 +158,7 @@ func loadConfig() config {
 		caCerts:       mainflux.Env(envCACerts, defCACerts),
 		jaegerURL:     mainflux.Env(envJaegerURL, defJaegerURL),
 		thingsTimeout: time.Duration(timeout) * time.Second,
+		authzURL:      mainflux.Env(envAuthzURL, defAuthzURL),
 	}
 }
 
@@ -173,7 +186,7 @@ func initJaeger(svcName, url string, logger logger.Logger) (opentracing.Tracer, 
 	return tracer, closer
 }
 
-func connectToThings(cfg config, logger logger.Logger) *grpc.ClientConn {
+func connectToGRPC(cfg config, url string, logger logger.Logger) *grpc.ClientConn {
 	var opts []grpc.DialOption
 	if cfg.clientTLS {
 		if cfg.caCerts != "" {
@@ -189,9 +202,9 @@ func connectToThings(cfg config, logger logger.Logger) *grpc.ClientConn {
 		opts = append(opts, grpc.WithInsecure())
 	}
 
-	conn, err := grpc.Dial(cfg.thingsURL, opts...)
+	conn, err := grpc.Dial(url, opts...)
 	if err != nil {
-		logger.Error(fmt.Sprintf("Failed to connect to things service: %s", err))
+		logger.Error(fmt.Sprintf("Failed to connect to %s service: %s", url, err))
 		os.Exit(1)
 	}
 	return conn

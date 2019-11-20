@@ -148,42 +148,6 @@ func (ms *metricsMiddleware) RemoveChannel(ctx context.Context, token, id string
 	return ms.svc.RemoveChannel(ctx, token, id)
 }
 
-func (ms *metricsMiddleware) Connect(ctx context.Context, token string, chIDs, thIDs []string) error {
-	defer func(begin time.Time) {
-		ms.counter.With("method", "connect").Add(1)
-		ms.latency.With("method", "connect").Observe(time.Since(begin).Seconds())
-	}(time.Now())
-
-	return ms.svc.Connect(ctx, token, chIDs, thIDs)
-}
-
-func (ms *metricsMiddleware) Disconnect(ctx context.Context, token, chanID, thingID string) error {
-	defer func(begin time.Time) {
-		ms.counter.With("method", "disconnect").Add(1)
-		ms.latency.With("method", "disconnect").Observe(time.Since(begin).Seconds())
-	}(time.Now())
-
-	return ms.svc.Disconnect(ctx, token, chanID, thingID)
-}
-
-func (ms *metricsMiddleware) CanAccessByKey(ctx context.Context, id, key string) (string, error) {
-	defer func(begin time.Time) {
-		ms.counter.With("method", "can_access_by_key").Add(1)
-		ms.latency.With("method", "can_access_by_key").Observe(time.Since(begin).Seconds())
-	}(time.Now())
-
-	return ms.svc.CanAccessByKey(ctx, id, key)
-}
-
-func (ms *metricsMiddleware) CanAccessByID(ctx context.Context, chanID, thingID string) error {
-	defer func(begin time.Time) {
-		ms.counter.With("method", "can_access_by_id").Add(1)
-		ms.latency.With("method", "can_access_by_id").Observe(time.Since(begin).Seconds())
-	}(time.Now())
-
-	return ms.svc.CanAccessByID(ctx, chanID, thingID)
-}
-
 func (ms *metricsMiddleware) Identify(ctx context.Context, key string) (string, error) {
 	defer func(begin time.Time) {
 		ms.counter.With("method", "identify").Add(1)

@@ -18,6 +18,8 @@ import (
 	gocoap "github.com/dustin/go-coap"
 	kitprometheus "github.com/go-kit/kit/metrics/prometheus"
 	"github.com/mainflux/mainflux"
+	"github.com/mainflux/mainflux/authz"
+	authzgrpc "github.com/mainflux/mainflux/authz/api/grpc"
 	"github.com/mainflux/mainflux/coap"
 	"github.com/mainflux/mainflux/coap/api"
 	"github.com/mainflux/mainflux/coap/nats"
@@ -42,6 +44,7 @@ const (
 	defPingPeriod    = "12"
 	defJaegerURL     = ""
 	defThingsTimeout = "1" // in seconds
+	defAuthzURL      = "localhost:8181"
 
 	envPort          = "MF_COAP_ADAPTER_PORT"
 	envNatsURL       = "MF_NATS_URL"
@@ -52,6 +55,7 @@ const (
 	envPingPeriod    = "MF_COAP_ADAPTER_PING_PERIOD"
 	envJaegerURL     = "MF_JAEGER_URL"
 	envThingsTimeout = "MF_COAP_ADAPTER_THINGS_TIMEOUT"
+	envAuthzURL      = "MF_AUTHZ_URL"
 )
 
 type config struct {
@@ -64,6 +68,7 @@ type config struct {
 	pingPeriod    time.Duration
 	jaegerURL     string
 	thingsTimeout time.Duration
+	authzURL      string
 }
 
 func main() {
@@ -81,18 +86,26 @@ func main() {
 	}
 	defer nc.Close()
 
-	conn := connectToThings(cfg, logger)
-	defer conn.Close()
+	thingsConn := connectToGRPC(cfg, cfg.thingsURL, logger)
+	defer thingsConn.Close()
 
 	thingsTracer, thingsCloser := initJaeger("things", cfg.jaegerURL, logger)
 	defer thingsCloser.Close()
 
-	cc := thingsapi.NewClient(conn, thingsTracer, cfg.thingsTimeout)
+	cc := thingsapi.NewClient(thingsConn, thingsTracer, cfg.thingsTimeout)
 	respChan := make(chan string, 10000)
 	pubsub := nats.New(nc)
+
+	authzConn := connectToGRPC(cfg, cfg.authzURL, logger)
+	defer authzConn.Close()
+
+	authzTracer, authzCloser := initJaeger("authz", cfg.jaegerURL, logger)
+	defer authzCloser.Close()
+
+	authz := authzgrpc.NewClient(authzConn, authzTracer)
+
 	svc := coap.New(pubsub, cc, respChan)
 	svc = api.LoggingMiddleware(svc, logger)
-
 	svc = api.MetricsMiddleware(
 		svc,
 		kitprometheus.NewCounterFrom(stdprometheus.CounterOpts{
@@ -112,7 +125,7 @@ func main() {
 	errs := make(chan error, 2)
 
 	go startHTTPServer(cfg.port, logger, errs)
-	go startCOAPServer(cfg, svc, cc, respChan, logger, errs)
+	go startCOAPServer(cfg, svc, authz, cc, respChan, logger, errs)
 
 	go func() {
 		c := make(chan os.Signal)
@@ -154,10 +167,11 @@ func loadConfig() config {
 		pingPeriod:    time.Duration(pp),
 		jaegerURL:     mainflux.Env(envJaegerURL, defJaegerURL),
 		thingsTimeout: time.Duration(timeout) * time.Second,
+		authzURL:      mainflux.Env(envAuthzURL, defAuthzURL),
 	}
 }
 
-func connectToThings(cfg config, logger logger.Logger) *grpc.ClientConn {
+func connectToGRPC(cfg config, url string, logger logger.Logger) *grpc.ClientConn {
 	var opts []grpc.DialOption
 	if cfg.clientTLS {
 		if cfg.caCerts != "" {
@@ -173,9 +187,9 @@ func connectToThings(cfg config, logger logger.Logger) *grpc.ClientConn {
 		opts = append(opts, grpc.WithInsecure())
 	}
 
-	conn, err := grpc.Dial(cfg.thingsURL, opts...)
+	conn, err := grpc.Dial(url, opts...)
 	if err != nil {
-		logger.Error(fmt.Sprintf("Failed to connect to things service: %s", err))
+		logger.Error(fmt.Sprintf("Failed to connect to %s service: %s", url, err))
 		os.Exit(1)
 	}
 	return conn
@@ -211,8 +225,8 @@ func startHTTPServer(port string, logger logger.Logger, errs chan error) {
 	errs <- http.ListenAndServe(p, api.MakeHTTPHandler())
 }
 
-func startCOAPServer(cfg config, svc coap.Service, auth mainflux.ThingsServiceClient, respChan chan<- string, l logger.Logger, errs chan error) {
+func startCOAPServer(cfg config, svc coap.Service, authz authz.Service, authn mainflux.ThingsServiceClient, respChan chan<- string, l logger.Logger, errs chan error) {
 	p := fmt.Sprintf(":%s", cfg.port)
 	l.Info(fmt.Sprintf("CoAP adapter service started, exposed port %s", cfg.port))
-	errs <- gocoap.ListenAndServe("udp", p, api.MakeCOAPHandler(svc, auth, l, respChan, cfg.pingPeriod))
+	errs <- gocoap.ListenAndServe("udp", p, api.MakeCOAPHandler(svc, authz, authn, l, respChan, cfg.pingPeriod))
 }

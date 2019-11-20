@@ -9,33 +9,42 @@ import (
 	"context"
 
 	"github.com/mainflux/mainflux"
+	"github.com/mainflux/mainflux/authz"
 )
 
 var _ mainflux.MessagePublisher = (*adapterService)(nil)
 
 type adapterService struct {
 	pub    mainflux.MessagePublisher
+	authz  authz.Service
 	things mainflux.ThingsServiceClient
 }
 
 // New instantiates the HTTP adapter implementation.
-func New(pub mainflux.MessagePublisher, things mainflux.ThingsServiceClient) mainflux.MessagePublisher {
+func New(pub mainflux.MessagePublisher, authz authz.Service, things mainflux.ThingsServiceClient) mainflux.MessagePublisher {
 	return &adapterService{
 		pub:    pub,
+		authz:  authz,
 		things: things,
 	}
 }
 
 func (as *adapterService) Publish(ctx context.Context, token string, msg mainflux.Message) error {
-	ar := &mainflux.AccessByKeyReq{
-		Token:  token,
-		ChanID: msg.GetChannel(),
-	}
-	thid, err := as.things.CanAccessByKey(ctx, ar)
+	res, err := as.things.Identify(ctx, &mainflux.Token{Value: token})
 	if err != nil {
 		return err
 	}
-	msg.Publisher = thid.GetValue()
+	thid := res.GetValue()
 
+	p := authz.Policy{
+		Subject: thid,
+		Object:  msg.GetChannel(),
+		Action:  "read",
+	}
+	if err := as.authz.Authorize(ctx, p); err != nil {
+		return err
+	}
+
+	msg.Publisher = thid
 	return as.pub.Publish(ctx, token, msg)
 }

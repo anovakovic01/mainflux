@@ -186,56 +186,6 @@ func (es eventStore) RemoveChannel(ctx context.Context, token, id string) error 
 	return nil
 }
 
-func (es eventStore) Connect(ctx context.Context, token string, chIDs, thIDs []string) error {
-	if err := es.svc.Connect(ctx, token, chIDs, thIDs); err != nil {
-		return err
-	}
-
-	for _, chID := range chIDs {
-		for _, thID := range thIDs {
-			event := connectThingEvent{
-				chanID:  chID,
-				thingID: thID,
-			}
-			record := &redis.XAddArgs{
-				Stream:       streamID,
-				MaxLenApprox: streamLen,
-				Values:       event.Encode(),
-			}
-			es.client.XAdd(record).Err()
-		}
-	}
-
-	return nil
-}
-
-func (es eventStore) Disconnect(ctx context.Context, token, chanID, thingID string) error {
-	if err := es.svc.Disconnect(ctx, token, chanID, thingID); err != nil {
-		return err
-	}
-
-	event := disconnectThingEvent{
-		chanID:  chanID,
-		thingID: thingID,
-	}
-	record := &redis.XAddArgs{
-		Stream:       streamID,
-		MaxLenApprox: streamLen,
-		Values:       event.Encode(),
-	}
-	es.client.XAdd(record).Err()
-
-	return nil
-}
-
-func (es eventStore) CanAccessByKey(ctx context.Context, chanID string, key string) (string, error) {
-	return es.svc.CanAccessByKey(ctx, chanID, key)
-}
-
-func (es eventStore) CanAccessByID(ctx context.Context, chanID string, thingID string) error {
-	return es.svc.CanAccessByID(ctx, chanID, thingID)
-}
-
 func (es eventStore) Identify(ctx context.Context, key string) (string, error) {
 	return es.svc.Identify(ctx, key)
 }

@@ -9,6 +9,7 @@ networks:
 
 volumes:
   mainflux-authn-db-volume:
+  mainflux-authz-db-volume:
   mainflux-users-db-volume:
   mainflux-things-db-volume:
   mainflux-things-redis-volume:
@@ -88,6 +89,43 @@ services:
       - ${MF_AUTHN_GRPC_PORT}:${MF_AUTHN_GRPC_PORT}
     networks:
       - mainflux-base-net
+  
+  authz:
+    image: mainflux/authz:latest
+    container_name: mainflux-authz
+    restart: on-failure
+    environment:
+      MF_AUTHZ_LOG_LEVEL: ${MF_AUTHZ_LOG_LEVEL}
+      MF_AUTHZ_HTTP_PORT: ${MF_AUTHZ_HTTP_PORT}
+      MF_AUTHZ_GRPC_PORT: ${MF_AUTHZ_GRPC_PORT}
+      MF_AUTHZ_SERVER_CERT: ${MF_AUTHZ_SERVER_CERT}
+      MF_AUTHZ_SERVER_KEY: ${MF_AUTHZ_SERVER_KEY}
+      MF_AUTHZ_DB_HOST: ${MF_AUTHZ_DB_HOST}
+      MF_AUTHZ_DB_PORT: ${MF_AUTHZ_DB_PORT}
+      MF_AUTHZ_DB_USER: ${MF_AUTHZ_DB_USER}
+      MF_AUTHZ_DB_PASS: ${MF_AUTHZ_DB_PASS}
+      MF_AUTHZ_NATS_URL: ${MF_AUTHZ_NATS_URL}
+      MF_AUTHZ_NATS_SUBJECT: ${MF_AUTHZ_NATS_SUBJECT}
+      MF_AUTHN_URL: ${MF_AUTHN_URL}
+      MF_JAEGER_URL: ${MF_JAEGER_URL}
+    expose:
+      - ${MF_AUTHZ_HTTP_PORT}
+      - ${MF_AUTHZ_GRPC_PORT}
+    networks:
+      - mainflux-base-net
+      
+  authz-db:
+    image: postgres:10.8-alpine
+    container_name: mainflux-authz-db
+    restart: on-failure
+    environment:
+      POSTGRES_USER: ${MF_AUTHZ_DB_USER}
+      POSTGRES_PASSWORD: ${MF_AUTHZ_DB_PASS}
+      # POSTGRES_DB: ${MF_AUTHZ_DB} casbin_rule
+    networks:
+      - mainflux-base-net
+    volumes:
+      - mainflux-authz-db-volume:/data
 
   users-db:
     image: postgres:10.8-alpine
@@ -165,6 +203,7 @@ services:
       - authn
     restart: on-failure
     environment:
+      MF_AUTHZ_URL: ${MF_AUTHZ_URL}
       MF_THINGS_LOG_LEVEL: ${MF_THINGS_LOG_LEVEL}
       MF_THINGS_DB_HOST: things-db
       MF_THINGS_DB_PORT: ${MF_THINGS_DB_PORT}

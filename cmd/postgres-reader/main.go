@@ -18,6 +18,8 @@ import (
 	kitprometheus "github.com/go-kit/kit/metrics/prometheus"
 	"github.com/jmoiron/sqlx"
 	"github.com/mainflux/mainflux"
+	"github.com/mainflux/mainflux/authz"
+	authzgrpc "github.com/mainflux/mainflux/authz/api/grpc"
 	"github.com/mainflux/mainflux/logger"
 	"github.com/mainflux/mainflux/readers"
 	"github.com/mainflux/mainflux/readers/api"
@@ -50,6 +52,7 @@ const (
 	defDBSSLRootCert = ""
 	defJaegerURL     = ""
 	defThingsTimeout = "1" // in seconds
+	defAuthzURL      = "localhost:8181"
 
 	envThingsURL     = "MF_THINGS_URL"
 	envLogLevel      = "MF_POSTGRES_READER_LOG_LEVEL"
@@ -67,6 +70,7 @@ const (
 	envDBSSLRootCert = "MF_POSTGRES_READER_DB_SSL_ROOT_CERT"
 	envJaegerURL     = "MF_JAEGER_URL"
 	envThingsTimeout = "MF_POSTGRES_READER_THINGS_TIMEOUT"
+	envAuthzURL      = "MF_AUTHZ_URL"
 )
 
 type config struct {
@@ -78,6 +82,7 @@ type config struct {
 	dbConfig      postgres.Config
 	jaegerURL     string
 	thingsTimeout time.Duration
+	authzURL      string
 }
 
 func main() {
@@ -88,13 +93,21 @@ func main() {
 		log.Fatalf(err.Error())
 	}
 
-	conn := connectToThings(cfg, logger)
-	defer conn.Close()
+	thingsConn := connectToGRPC(cfg, cfg.thingsURL, logger)
+	defer thingsConn.Close()
 
 	thingsTracer, thingsCloser := initJaeger("things", cfg.jaegerURL, logger)
 	defer thingsCloser.Close()
 
-	tc := thingsapi.NewClient(conn, thingsTracer, cfg.thingsTimeout)
+	authn := thingsapi.NewClient(thingsConn, thingsTracer, cfg.thingsTimeout)
+
+	authzConn := connectToGRPC(cfg, cfg.authzURL, logger)
+	defer authzConn.Close()
+
+	authzTracer, authzCloser := initJaeger("authz", cfg.jaegerURL, logger)
+	defer authzCloser.Close()
+
+	authz := authzgrpc.NewClient(authzConn, authzTracer)
 
 	db := connectToDB(cfg.dbConfig, logger)
 	defer db.Close()
@@ -103,7 +116,7 @@ func main() {
 
 	errs := make(chan error, 2)
 
-	go startHTTPServer(repo, tc, cfg.port, logger, errs)
+	go startHTTPServer(repo, authz, authn, cfg.port, logger, errs)
 
 	go func() {
 		c := make(chan os.Signal)
@@ -140,6 +153,7 @@ func loadConfig() config {
 		dbConfig:      dbConfig,
 		jaegerURL:     mainflux.Env(envJaegerURL, defJaegerURL),
 		thingsTimeout: time.Duration(timeout) * time.Second,
+		authzURL:      mainflux.Env(envAuthzURL, defAuthzURL),
 	}
 }
 
@@ -176,7 +190,7 @@ func initJaeger(svcName, url string, logger logger.Logger) (opentracing.Tracer, 
 	return tracer, closer
 }
 
-func connectToThings(cfg config, logger logger.Logger) *grpc.ClientConn {
+func connectToGRPC(cfg config, url string, logger logger.Logger) *grpc.ClientConn {
 	var opts []grpc.DialOption
 	if cfg.clientTLS {
 		if cfg.caCerts != "" {
@@ -192,9 +206,9 @@ func connectToThings(cfg config, logger logger.Logger) *grpc.ClientConn {
 		opts = append(opts, grpc.WithInsecure())
 	}
 
-	conn, err := grpc.Dial(cfg.thingsURL, opts...)
+	conn, err := grpc.Dial(url, opts...)
 	if err != nil {
-		logger.Error(fmt.Sprintf("Failed to connect to things service: %s", err))
+		logger.Error(fmt.Sprintf("Failed to connect to %s service: %s", url, err))
 		os.Exit(1)
 	}
 	return conn
@@ -222,8 +236,8 @@ func newService(db *sqlx.DB, logger logger.Logger) readers.MessageRepository {
 	return svc
 }
 
-func startHTTPServer(repo readers.MessageRepository, tc mainflux.ThingsServiceClient, port string, logger logger.Logger, errs chan error) {
+func startHTTPServer(repo readers.MessageRepository, authz authz.Service, authn mainflux.ThingsServiceClient, port string, logger logger.Logger, errs chan error) {
 	p := fmt.Sprintf(":%s", port)
 	logger.Info(fmt.Sprintf("Postgres reader service started, exposed port %s", port))
-	errs <- http.ListenAndServe(p, api.MakeHandler(repo, tc, svcName))
+	errs <- http.ListenAndServe(p, api.MakeHandler(repo, authz, authn, svcName))
 }

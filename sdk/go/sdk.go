@@ -202,6 +202,7 @@ type mfSDK struct {
 	readerPrefix      string
 	usersPrefix       string
 	thingsPrefix      string
+	authzPrefix       string
 	channelsPrefix    string
 	httpAdapterPrefix string
 	msgContentType    ContentType
@@ -215,6 +216,7 @@ type Config struct {
 	ReaderPrefix      string
 	UsersPrefix       string
 	ThingsPrefix      string
+	AuthzPrefix       string
 	HTTPAdapterPrefix string
 	MsgContentType    ContentType
 	TLSVerification   bool
@@ -228,6 +230,7 @@ func NewSDK(conf Config) SDK {
 		readerPrefix:      conf.ReaderPrefix,
 		usersPrefix:       conf.UsersPrefix,
 		thingsPrefix:      conf.ThingsPrefix,
+		authzPrefix:       conf.AuthzPrefix,
 		httpAdapterPrefix: conf.HTTPAdapterPrefix,
 		msgContentType:    conf.MsgContentType,
 		client: &http.Client{

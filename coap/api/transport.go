@@ -19,6 +19,7 @@ import (
 	gocoap "github.com/dustin/go-coap"
 	"github.com/go-zoo/bone"
 	"github.com/mainflux/mainflux"
+	"github.com/mainflux/mainflux/authz"
 	"github.com/mainflux/mainflux/coap"
 	log "github.com/mainflux/mainflux/logger"
 	"github.com/mainflux/mainflux/transformers/senml"
@@ -41,12 +42,16 @@ var (
 )
 
 var (
-	auth       mainflux.ThingsServiceClient
 	logger     log.Logger
 	pingPeriod time.Duration
 )
 
 type handler func(conn *net.UDPConn, addr *net.UDPAddr, msg *gocoap.Message) *gocoap.Message
+
+type server struct {
+	authz authz.Service
+	authn mainflux.ThingsServiceClient
+}
 
 //MakeHTTPHandler creates handler for version endpoint.
 func MakeHTTPHandler() http.Handler {
@@ -58,14 +63,17 @@ func MakeHTTPHandler() http.Handler {
 }
 
 // MakeCOAPHandler creates handler for CoAP messages.
-func MakeCOAPHandler(svc coap.Service, tc mainflux.ThingsServiceClient, l log.Logger, responses chan<- string, pp time.Duration) gocoap.Handler {
-	auth = tc
+func MakeCOAPHandler(svc coap.Service, authz authz.Service, authn mainflux.ThingsServiceClient, l log.Logger, responses chan<- string, pp time.Duration) gocoap.Handler {
+	s := server{
+		authz: authz,
+		authn: authn,
+	}
 	logger = l
 	pingPeriod = pp
-	return mux(svc, responses)
+	return mux(svc, s, responses)
 }
 
-func mux(svc coap.Service, responses chan<- string) gocoap.Handler {
+func mux(svc coap.Service, s server, responses chan<- string) gocoap.Handler {
 	return gocoap.FuncHandler(func(conn *net.UDPConn, addr *net.UDPAddr, msg *gocoap.Message) *gocoap.Message {
 		path := msg.PathString()
 		if !channelRegExp.Match([]byte(path)) {
@@ -83,9 +91,9 @@ func mux(svc coap.Service, responses chan<- string) gocoap.Handler {
 		}
 		switch msg.Code {
 		case gocoap.GET:
-			return observe(svc, responses)(conn, addr, msg)
+			return observe(svc, s, responses)(conn, addr, msg)
 		default:
-			return receive(svc, msg)
+			return receive(svc, s, msg)
 		}
 	})
 }
@@ -112,7 +120,7 @@ func subtopic(msg *gocoap.Message) string {
 	return ""
 }
 
-func authorize(msg *gocoap.Message, res *gocoap.Message, cid string) (string, error) {
+func (s server) authorize(msg *gocoap.Message, res *gocoap.Message, cid string) (string, error) {
 	// Device Key is passed as Uri-Query parameter, which option ID is 15 (0xf).
 	query := msg.Option(gocoap.URIQuery)
 	queryStr, ok := query.(string)
@@ -138,22 +146,39 @@ func authorize(msg *gocoap.Message, res *gocoap.Message, cid string) (string, er
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 
-	id, err := auth.CanAccessByKey(ctx, &mainflux.AccessByKeyReq{Token: key, ChanID: cid})
+	id, err := s.authn.Identify(ctx, &mainflux.Token{Value: key})
 	if err != nil {
-		e, ok := status.FromError(err)
-		if ok {
-			switch e.Code() {
-			case codes.PermissionDenied:
-				res.Code = gocoap.Forbidden
-			default:
-				res.Code = gocoap.ServiceUnavailable
-			}
-			return "", err
+		if e := processAuthErr(err, res); e != nil {
+			return "", e
 		}
-		res.Code = gocoap.InternalServerError
+	}
+	tid := id.GetValue()
+
+	p := authz.Policy{
+		Subject: tid,
+		Object:  cid,
+		Action:  "read",
+	}
+	if err := s.authz.Authorize(ctx, p); err != nil {
+		res.Code = gocoap.Forbidden
 	}
 
-	return id.GetValue(), nil
+	return tid, nil
+}
+
+func processAuthErr(err error, res *gocoap.Message) error {
+	e, ok := status.FromError(err)
+	if ok {
+		switch e.Code() {
+		case codes.PermissionDenied:
+			res.Code = gocoap.Forbidden
+		default:
+			res.Code = gocoap.ServiceUnavailable
+		}
+		return err
+	}
+	res.Code = gocoap.InternalServerError
+	return nil
 }
 
 func fmtSubtopic(msg *gocoap.Message) (string, error) {
@@ -183,7 +208,7 @@ func fmtSubtopic(msg *gocoap.Message) (string, error) {
 	return subtopic, nil
 }
 
-func receive(svc coap.Service, msg *gocoap.Message) *gocoap.Message {
+func receive(svc coap.Service, s server, msg *gocoap.Message) *gocoap.Message {
 	// By default message is NonConfirmable, so
 	// NonConfirmable response is sent back.
 	res := &gocoap.Message{
@@ -223,7 +248,7 @@ func receive(svc coap.Service, msg *gocoap.Message) *gocoap.Message {
 		ct = ""
 	}
 
-	publisher, err := authorize(msg, res, chanID)
+	publisher, err := s.authorize(msg, res, chanID)
 	if err != nil {
 		res.Code = gocoap.Forbidden
 		return res
@@ -245,7 +270,7 @@ func receive(svc coap.Service, msg *gocoap.Message) *gocoap.Message {
 	return res
 }
 
-func observe(svc coap.Service, responses chan<- string) handler {
+func observe(svc coap.Service, s server, responses chan<- string) handler {
 	return func(conn *net.UDPConn, addr *net.UDPAddr, msg *gocoap.Message) *gocoap.Message {
 		res := &gocoap.Message{
 			Type:      gocoap.Acknowledgement,
@@ -268,7 +293,7 @@ func observe(svc coap.Service, responses chan<- string) handler {
 			return res
 		}
 
-		publisher, err := authorize(msg, res, chanID)
+		publisher, err := s.authorize(msg, res, chanID)
 		if err != nil {
 			res.Code = gocoap.Forbidden
 			logger.Warn(fmt.Sprintf("Failed to authorize: %s", err))

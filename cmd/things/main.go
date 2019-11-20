@@ -16,6 +16,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/mainflux/mainflux/authz"
 	"github.com/mainflux/mainflux/things/tracing"
 
 	"github.com/jmoiron/sqlx"
@@ -25,7 +26,8 @@ import (
 	kitprometheus "github.com/go-kit/kit/metrics/prometheus"
 	"github.com/go-redis/redis"
 	"github.com/mainflux/mainflux"
-	authapi "github.com/mainflux/mainflux/authn/api/grpc"
+	authngrpc "github.com/mainflux/mainflux/authn/api/grpc"
+	authzgrpc "github.com/mainflux/mainflux/authz/api/grpc"
 	"github.com/mainflux/mainflux/logger"
 	"github.com/mainflux/mainflux/things"
 	"github.com/mainflux/mainflux/things/api"
@@ -34,7 +36,6 @@ import (
 	thhttpapi "github.com/mainflux/mainflux/things/api/things/http"
 	"github.com/mainflux/mainflux/things/postgres"
 	rediscache "github.com/mainflux/mainflux/things/redis"
-	localusers "github.com/mainflux/mainflux/things/users"
 	"github.com/mainflux/mainflux/things/uuid"
 	stdprometheus "github.com/prometheus/client_golang/prometheus"
 	jconfig "github.com/uber/jaeger-client-go/config"
@@ -42,86 +43,83 @@ import (
 )
 
 const (
-	defLogLevel        = "error"
-	defDBHost          = "localhost"
-	defDBPort          = "5432"
-	defDBUser          = "mainflux"
-	defDBPass          = "mainflux"
-	defDBName          = "things"
-	defDBSSLMode       = "disable"
-	defDBSSLCert       = ""
-	defDBSSLKey        = ""
-	defDBSSLRootCert   = ""
-	defClientTLS       = "false"
-	defCACerts         = ""
-	defCacheURL        = "localhost:6379"
-	defCachePass       = ""
-	defCacheDB         = "0"
-	defESURL           = "localhost:6379"
-	defESPass          = ""
-	defESDB            = "0"
-	defHTTPPort        = "8180"
-	defAuthHTTPPort    = "8989"
-	defAuthGRPCPort    = "8181"
-	defServerCert      = ""
-	defServerKey       = ""
-	defSingleUserEmail = ""
-	defSingleUserToken = ""
-	defJaegerURL       = ""
-	defAuthURL         = "localhost:8181"
-	defAuthTimeout     = "1" // in seconds
+	defLogLevel      = "error"
+	defDBHost        = "localhost"
+	defDBPort        = "5432"
+	defDBUser        = "mainflux"
+	defDBPass        = "mainflux"
+	defDBName        = "things"
+	defDBSSLMode     = "disable"
+	defDBSSLCert     = ""
+	defDBSSLKey      = ""
+	defDBSSLRootCert = ""
+	defClientTLS     = "false"
+	defCACerts       = ""
+	defCacheURL      = "localhost:6379"
+	defCachePass     = ""
+	defCacheDB       = "0"
+	defESURL         = "localhost:6379"
+	defESPass        = ""
+	defESDB          = "0"
+	defHTTPPort      = "8180"
+	defAuthHTTPPort  = "8989"
+	defAuthGRPCPort  = "8181"
+	defServerCert    = ""
+	defServerKey     = ""
+	defJaegerURL     = ""
+	defAuthnURL      = "localhost:8181"
+	defAuthnTimeout  = "1" // in seconds
+	defAuthzURL      = "localhost:8181"
 
-	envLogLevel        = "MF_THINGS_LOG_LEVEL"
-	envDBHost          = "MF_THINGS_DB_HOST"
-	envDBPort          = "MF_THINGS_DB_PORT"
-	envDBUser          = "MF_THINGS_DB_USER"
-	envDBPass          = "MF_THINGS_DB_PASS"
-	envDBName          = "MF_THINGS_DB"
-	envDBSSLMode       = "MF_THINGS_DB_SSL_MODE"
-	envDBSSLCert       = "MF_THINGS_DB_SSL_CERT"
-	envDBSSLKey        = "MF_THINGS_DB_SSL_KEY"
-	envDBSSLRootCert   = "MF_THINGS_DB_SSL_ROOT_CERT"
-	envClientTLS       = "MF_THINGS_CLIENT_TLS"
-	envCACerts         = "MF_THINGS_CA_CERTS"
-	envCacheURL        = "MF_THINGS_CACHE_URL"
-	envCachePass       = "MF_THINGS_CACHE_PASS"
-	envCacheDB         = "MF_THINGS_CACHE_DB"
-	envESURL           = "MF_THINGS_ES_URL"
-	envESPass          = "MF_THINGS_ES_PASS"
-	envESDB            = "MF_THINGS_ES_DB"
-	envHTTPPort        = "MF_THINGS_HTTP_PORT"
-	envAuthHTTPPort    = "MF_THINGS_AUTH_HTTP_PORT"
-	envAuthGRPCPort    = "MF_THINGS_AUTH_GRPC_PORT"
-	envServerCert      = "MF_THINGS_SERVER_CERT"
-	envServerKey       = "MF_THINGS_SERVER_KEY"
-	envSingleUserEmail = "MF_THINGS_SINGLE_USER_EMAIL"
-	envSingleUserToken = "MF_THINGS_SINGLE_USER_TOKEN"
-	envJaegerURL       = "MF_JAEGER_URL"
-	envAuthURL         = "MF_AUTH_URL"
-	envAuthTimeout     = "MF_AUTH_TIMEOUT"
+	envLogLevel      = "MF_THINGS_LOG_LEVEL"
+	envDBHost        = "MF_THINGS_DB_HOST"
+	envDBPort        = "MF_THINGS_DB_PORT"
+	envDBUser        = "MF_THINGS_DB_USER"
+	envDBPass        = "MF_THINGS_DB_PASS"
+	envDBName        = "MF_THINGS_DB"
+	envDBSSLMode     = "MF_THINGS_DB_SSL_MODE"
+	envDBSSLCert     = "MF_THINGS_DB_SSL_CERT"
+	envDBSSLKey      = "MF_THINGS_DB_SSL_KEY"
+	envDBSSLRootCert = "MF_THINGS_DB_SSL_ROOT_CERT"
+	envClientTLS     = "MF_THINGS_CLIENT_TLS"
+	envCACerts       = "MF_THINGS_CA_CERTS"
+	envCacheURL      = "MF_THINGS_CACHE_URL"
+	envCachePass     = "MF_THINGS_CACHE_PASS"
+	envCacheDB       = "MF_THINGS_CACHE_DB"
+	envESURL         = "MF_THINGS_ES_URL"
+	envESPass        = "MF_THINGS_ES_PASS"
+	envESDB          = "MF_THINGS_ES_DB"
+	envHTTPPort      = "MF_THINGS_HTTP_PORT"
+	envAuthHTTPPort  = "MF_THINGS_AUTH_HTTP_PORT"
+	envAuthGRPCPort  = "MF_THINGS_AUTH_GRPC_PORT"
+	envServerCert    = "MF_THINGS_SERVER_CERT"
+	envServerKey     = "MF_THINGS_SERVER_KEY"
+	envJaegerURL     = "MF_JAEGER_URL"
+	envAuthnURL      = "MF_AUTH_URL"
+	envAuthnTimeout  = "MF_AUTH_TIMEOUT"
+	envAuthzURL      = "MF_AUTHZ_URL"
 )
 
 type config struct {
-	logLevel        string
-	dbConfig        postgres.Config
-	clientTLS       bool
-	caCerts         string
-	cacheURL        string
-	cachePass       string
-	cacheDB         string
-	esURL           string
-	esPass          string
-	esDB            string
-	httpPort        string
-	authHTTPPort    string
-	authGRPCPort    string
-	serverCert      string
-	serverKey       string
-	singleUserEmail string
-	singleUserToken string
-	jaegerURL       string
-	authURL         string
-	authTimeout     time.Duration
+	logLevel     string
+	dbConfig     postgres.Config
+	clientTLS    bool
+	caCerts      string
+	cacheURL     string
+	cachePass    string
+	cacheDB      string
+	esURL        string
+	esPass       string
+	esDB         string
+	httpPort     string
+	authHTTPPort string
+	authGRPCPort string
+	serverCert   string
+	serverKey    string
+	jaegerURL    string
+	authnURL     string
+	authnTimeout time.Duration
+	authzURL     string
 }
 
 func main() {
@@ -145,7 +143,7 @@ func main() {
 	authTracer, authCloser := initJaeger("auth", cfg.jaegerURL, logger)
 	defer authCloser.Close()
 
-	auth, close := createAuthClient(cfg, authTracer, logger)
+	authn, close := createAuthNClient(cfg, authTracer, logger)
 	if close != nil {
 		defer close()
 	}
@@ -156,7 +154,12 @@ func main() {
 	cacheTracer, cacheCloser := initJaeger("things_cache", cfg.jaegerURL, logger)
 	defer cacheCloser.Close()
 
-	svc := newService(auth, dbTracer, cacheTracer, db, cacheClient, esClient, logger)
+	authzTracer, authzCloser := initJaeger("authz", cfg.jaegerURL, logger)
+	defer authzCloser.Close()
+
+	authzSvc := newAuthzClient(cfg, authzTracer, logger)
+
+	svc := newService(authn, authzSvc, dbTracer, cacheTracer, db, cacheClient, esClient, logger)
 	errs := make(chan error, 2)
 
 	go startHTTPServer(thhttpapi.MakeHandler(thingsTracer, svc), cfg.httpPort, cfg, logger, errs)
@@ -179,9 +182,9 @@ func loadConfig() config {
 		log.Fatalf("Invalid value passed for %s\n", envClientTLS)
 	}
 
-	timeout, err := strconv.ParseInt(mainflux.Env(envAuthTimeout, defAuthTimeout), 10, 64)
+	timeout, err := strconv.ParseInt(mainflux.Env(envAuthnTimeout, defAuthnTimeout), 10, 64)
 	if err != nil {
-		log.Fatalf("Invalid %s value: %s", envAuthTimeout, err.Error())
+		log.Fatalf("Invalid %s value: %s", envAuthnTimeout, err.Error())
 	}
 
 	dbConfig := postgres.Config{
@@ -197,26 +200,25 @@ func loadConfig() config {
 	}
 
 	return config{
-		logLevel:        mainflux.Env(envLogLevel, defLogLevel),
-		dbConfig:        dbConfig,
-		clientTLS:       tls,
-		caCerts:         mainflux.Env(envCACerts, defCACerts),
-		cacheURL:        mainflux.Env(envCacheURL, defCacheURL),
-		cachePass:       mainflux.Env(envCachePass, defCachePass),
-		cacheDB:         mainflux.Env(envCacheDB, defCacheDB),
-		esURL:           mainflux.Env(envESURL, defESURL),
-		esPass:          mainflux.Env(envESPass, defESPass),
-		esDB:            mainflux.Env(envESDB, defESDB),
-		httpPort:        mainflux.Env(envHTTPPort, defHTTPPort),
-		authHTTPPort:    mainflux.Env(envAuthHTTPPort, defAuthHTTPPort),
-		authGRPCPort:    mainflux.Env(envAuthGRPCPort, defAuthGRPCPort),
-		serverCert:      mainflux.Env(envServerCert, defServerCert),
-		serverKey:       mainflux.Env(envServerKey, defServerKey),
-		singleUserEmail: mainflux.Env(envSingleUserEmail, defSingleUserEmail),
-		singleUserToken: mainflux.Env(envSingleUserToken, defSingleUserToken),
-		jaegerURL:       mainflux.Env(envJaegerURL, defJaegerURL),
-		authURL:         mainflux.Env(envAuthURL, defAuthURL),
-		authTimeout:     time.Duration(timeout) * time.Second,
+		logLevel:     mainflux.Env(envLogLevel, defLogLevel),
+		dbConfig:     dbConfig,
+		clientTLS:    tls,
+		caCerts:      mainflux.Env(envCACerts, defCACerts),
+		cacheURL:     mainflux.Env(envCacheURL, defCacheURL),
+		cachePass:    mainflux.Env(envCachePass, defCachePass),
+		cacheDB:      mainflux.Env(envCacheDB, defCacheDB),
+		esURL:        mainflux.Env(envESURL, defESURL),
+		esPass:       mainflux.Env(envESPass, defESPass),
+		esDB:         mainflux.Env(envESDB, defESDB),
+		httpPort:     mainflux.Env(envHTTPPort, defHTTPPort),
+		authHTTPPort: mainflux.Env(envAuthHTTPPort, defAuthHTTPPort),
+		authGRPCPort: mainflux.Env(envAuthGRPCPort, defAuthGRPCPort),
+		serverCert:   mainflux.Env(envServerCert, defServerCert),
+		serverKey:    mainflux.Env(envServerKey, defServerKey),
+		jaegerURL:    mainflux.Env(envJaegerURL, defJaegerURL),
+		authnURL:     mainflux.Env(envAuthnURL, defAuthnURL),
+		authnTimeout: time.Duration(timeout) * time.Second,
+		authzURL:     mainflux.Env(envAuthzURL, defAuthzURL),
 	}
 }
 
@@ -267,16 +269,17 @@ func connectToDB(dbConfig postgres.Config, logger logger.Logger) *sqlx.DB {
 	return db
 }
 
-func createAuthClient(cfg config, tracer opentracing.Tracer, logger logger.Logger) (mainflux.AuthNServiceClient, func() error) {
-	if cfg.singleUserEmail != "" && cfg.singleUserToken != "" {
-		return localusers.NewSingleUserService(cfg.singleUserEmail, cfg.singleUserToken), nil
-	}
-
-	conn := connectToAuth(cfg, logger)
-	return authapi.NewClient(tracer, conn, cfg.authTimeout), conn.Close
+func createAuthNClient(cfg config, tracer opentracing.Tracer, logger logger.Logger) (mainflux.AuthNServiceClient, func() error) {
+	conn := connectToGRPC(cfg, cfg.authnURL, logger)
+	return authngrpc.NewClient(tracer, conn, cfg.authnTimeout), conn.Close
 }
 
-func connectToAuth(cfg config, logger logger.Logger) *grpc.ClientConn {
+func newAuthzClient(cfg config, tracer opentracing.Tracer, logger logger.Logger) authz.Service {
+	conn := connectToGRPC(cfg, cfg.authzURL, logger)
+	return authzgrpc.NewClient(conn, tracer)
+}
+
+func connectToGRPC(cfg config, url string, logger logger.Logger) *grpc.ClientConn {
 	var opts []grpc.DialOption
 	if cfg.clientTLS {
 		if cfg.caCerts != "" {
@@ -292,7 +295,7 @@ func connectToAuth(cfg config, logger logger.Logger) *grpc.ClientConn {
 		logger.Info("gRPC communication is not encrypted")
 	}
 
-	conn, err := grpc.Dial(cfg.authURL, opts...)
+	conn, err := grpc.Dial(url, opts...)
 	if err != nil {
 		logger.Error(fmt.Sprintf("Failed to connect to users service: %s", err))
 		os.Exit(1)
@@ -301,7 +304,7 @@ func connectToAuth(cfg config, logger logger.Logger) *grpc.ClientConn {
 	return conn
 }
 
-func newService(auth mainflux.AuthNServiceClient, dbTracer opentracing.Tracer, cacheTracer opentracing.Tracer, db *sqlx.DB, cacheClient *redis.Client, esClient *redis.Client, logger logger.Logger) things.Service {
+func newService(auth mainflux.AuthNServiceClient, authzSvc authz.Service, dbTracer opentracing.Tracer, cacheTracer opentracing.Tracer, db *sqlx.DB, cacheClient *redis.Client, esClient *redis.Client, logger logger.Logger) things.Service {
 	database := postgres.NewDatabase(db)
 
 	thingsRepo := postgres.NewThingRepository(database)
@@ -317,7 +320,7 @@ func newService(auth mainflux.AuthNServiceClient, dbTracer opentracing.Tracer, c
 	thingCache = tracing.ThingCacheMiddleware(cacheTracer, thingCache)
 	idp := uuid.New()
 
-	svc := things.New(auth, thingsRepo, channelsRepo, chanCache, thingCache, idp)
+	svc := things.New(auth, authzSvc, thingsRepo, channelsRepo, chanCache, thingCache, idp)
 	svc = rediscache.NewEventStoreMiddleware(svc, esClient)
 	svc = api.LoggingMiddleware(svc, logger)
 	svc = api.MetricsMiddleware(

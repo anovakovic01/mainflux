@@ -7,7 +7,7 @@ import (
 	"log"
 
 	"github.com/mainflux/mainflux/cli"
-	"github.com/mainflux/mainflux/sdk/go"
+	sdk "github.com/mainflux/mainflux/sdk/go"
 	"github.com/spf13/cobra"
 )
 
@@ -19,6 +19,7 @@ func main() {
 		ReaderPrefix:      "",
 		UsersPrefix:       "",
 		ThingsPrefix:      "",
+		AuthzPrefix:       "",
 		HTTPAdapterPrefix: "http",
 		MsgContentType:    sdk.ContentType(msgContentType),
 		TLSVerification:   false,

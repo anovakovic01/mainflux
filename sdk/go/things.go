@@ -284,10 +284,27 @@ func (sdk mfSDK) DeleteThing(id, token string) error {
 }
 
 func (sdk mfSDK) ConnectThing(thingID, chanID, token string) error {
-	endpoint := fmt.Sprintf("%s/%s/%s/%s", channelsEndpoint, chanID, thingsEndpoint, thingID)
-	url := createURL(sdk.baseURL, sdk.thingsPrefix, endpoint)
+	url := createURL(sdk.baseURL, sdk.authzPrefix, "connect")
 
-	req, err := http.NewRequest(http.MethodPut, url, nil)
+	data, err := json.Marshal(createConnectionsReq{
+		Connections: map[string]connectReq{
+			"1": connectReq{
+				Sub: thingID,
+				Obj: chanID,
+				Act: "write",
+			},
+			"2": connectReq{
+				Sub: thingID,
+				Obj: chanID,
+				Act: "read",
+			},
+		},
+	})
+	if err != nil {
+		return err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, url, bytes.NewReader(data))
 	if err != nil {
 		return err
 	}
@@ -368,4 +385,14 @@ func (sdk mfSDK) DisconnectThing(thingID, chanID, token string) error {
 	}
 
 	return nil
+}
+
+type createConnectionsReq struct {
+	Connections map[string]connectReq `json:"connections"`
+}
+
+type connectReq struct {
+	Sub string `json:"sub"`
+	Obj string `json:"obj"`
+	Act string `json:"act"`
 }

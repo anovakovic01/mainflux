@@ -10,11 +10,15 @@ import (
 	"github.com/mainflux/mainflux/readers"
 )
 
-func listMessagesEndpoint(svc readers.MessageRepository) endpoint.Endpoint {
+func listMessagesEndpoint(s server, svc readers.MessageRepository) endpoint.Endpoint {
 	return func(_ context.Context, request interface{}) (interface{}, error) {
 		req := request.(listMessagesReq)
 
 		if err := req.validate(); err != nil {
+			return nil, err
+		}
+
+		if err := s.authorize(req.token, req.chanID); err != nil {
 			return nil, err
 		}
 

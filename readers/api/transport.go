@@ -14,6 +14,7 @@ import (
 	kithttp "github.com/go-kit/kit/transport/http"
 	"github.com/go-zoo/bone"
 	"github.com/mainflux/mainflux"
+	"github.com/mainflux/mainflux/authz"
 	"github.com/mainflux/mainflux/readers"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"google.golang.org/grpc/codes"
@@ -33,9 +34,17 @@ var (
 	queryFields           = []string{"subtopic", "publisher", "protocol", "name", "value", "v", "vs", "vb", "vd"}
 )
 
+type server struct {
+	authz authz.Service
+	authn mainflux.ThingsServiceClient
+}
+
 // MakeHandler returns a HTTP handler for API endpoints.
-func MakeHandler(svc readers.MessageRepository, tc mainflux.ThingsServiceClient, svcName string) http.Handler {
-	auth = tc
+func MakeHandler(svc readers.MessageRepository, authz authz.Service, authn mainflux.ThingsServiceClient, svcName string) http.Handler {
+	s := server{
+		authz: authz,
+		authn: authn,
+	}
 
 	opts := []kithttp.ServerOption{
 		kithttp.ServerErrorEncoder(encodeError),
@@ -43,7 +52,7 @@ func MakeHandler(svc readers.MessageRepository, tc mainflux.ThingsServiceClient,
 
 	mux := bone.New()
 	mux.Get("/channels/:chanID/messages", kithttp.NewServer(
-		listMessagesEndpoint(svc),
+		listMessagesEndpoint(s, svc),
 		decodeList,
 		encodeResponse,
 		opts...,
@@ -61,8 +70,9 @@ func decodeList(_ context.Context, r *http.Request) (interface{}, error) {
 		return nil, errInvalidRequest
 	}
 
-	if err := authorize(r, chanID); err != nil {
-		return nil, err
+	token := r.Header.Get("Authorization")
+	if token == "" {
+		return nil, errUnauthorizedAccess
 	}
 
 	offset, err := getQuery(r, "offset", defOffset)
@@ -83,6 +93,7 @@ func decodeList(_ context.Context, r *http.Request) (interface{}, error) {
 	}
 
 	req := listMessagesReq{
+		token:  token,
 		chanID: chanID,
 		offset: offset,
 		limit:  limit,
@@ -122,16 +133,11 @@ func encodeError(_ context.Context, err error, w http.ResponseWriter) {
 	}
 }
 
-func authorize(r *http.Request, chanID string) error {
-	token := r.Header.Get("Authorization")
-	if token == "" {
-		return errUnauthorizedAccess
-	}
-
+func (s server) authorize(token string, chanID string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 
-	_, err := auth.CanAccessByKey(ctx, &mainflux.AccessByKeyReq{Token: token, ChanID: chanID})
+	id, err := s.authn.Identify(ctx, &mainflux.Token{Value: token})
 	if err != nil {
 		e, ok := status.FromError(err)
 		if ok && e.Code() == codes.PermissionDenied {
@@ -140,7 +146,12 @@ func authorize(r *http.Request, chanID string) error {
 		return err
 	}
 
-	return nil
+	p := authz.Policy{
+		Subject: id.GetValue(),
+		Object:  chanID,
+		Action:  "read",
+	}
+	return s.authz.Authorize(ctx, p)
 }
 
 func getQuery(req *http.Request, name string, fallback uint64) (uint64, error) {
