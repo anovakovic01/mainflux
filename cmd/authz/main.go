@@ -276,7 +276,7 @@ func newService(enf authz.Enforcer, idp authz.IdentityProvider, logger logger.Lo
 }
 
 func startHTTPServer(svc api.Service, tracer opentracing.Tracer, cfg config, logger logger.Logger, errs chan error) {
-	handler := httpapi.MakeHandler(svc)
+	handler := httpapi.MakeHandler(svc, logger)
 
 	p := fmt.Sprintf(":%s", cfg.httpPort)
 	if cfg.serverCert != "" || cfg.serverKey != "" {

@@ -6,6 +6,7 @@ import (
 	kitgrpc "github.com/go-kit/kit/transport/grpc"
 	"github.com/mainflux/mainflux/authz/api"
 	pb "github.com/mainflux/mainflux/authz/api/pb"
+	"github.com/mainflux/mainflux/errors"
 )
 
 type server struct {
@@ -142,7 +143,12 @@ func encodeErrorResponse(_ context.Context, grpcRes interface{}) (interface{}, e
 
 func err2str(err error) string {
 	if err != nil {
-		return err.Error()
+		e, ok := err.(errors.Error)
+		if !ok {
+			return err.Error()
+		}
+
+		return e.Msg()
 	}
 
 	return ""

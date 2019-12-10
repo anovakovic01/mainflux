@@ -2,6 +2,7 @@ package authz
 
 import (
 	"context"
+	"github.com/mainflux/mainflux/errors"
 )
 
 const (
@@ -30,7 +31,10 @@ func New(enforcer Enforcer, idp IdentityProvider) Service {
 
 func (svc service) Authorize(ctx context.Context, p Policy) error {
 	r, err := svc.enforcer.Enforce(p.Subject, p.Object, p.Action)
-	if err != nil || !r {
+	if err != nil {
+		return errors.Wrap(ErrUnauthorizedAccess, err)
+	}
+	if !r {
 		return ErrUnauthorizedAccess
 	}
 
@@ -40,7 +44,7 @@ func (svc service) Authorize(ctx context.Context, p Policy) error {
 func (svc service) Connect(ctx context.Context, token string, ps map[string]Policy) (map[string]error, error) {
 	userID, err := svc.idp.Identify(ctx, token)
 	if err != nil {
-		return nil, ErrAuthenticationFailed
+		return nil, err
 	}
 
 	errs := map[string]error{}
@@ -67,7 +71,7 @@ func (svc service) Connect(ctx context.Context, token string, ps map[string]Poli
 func (svc service) Disconnect(ctx context.Context, token string, ps map[string]Policy) (map[string]error, error) {
 	userID, err := svc.idp.Identify(ctx, token)
 	if err != nil {
-		return nil, ErrAuthenticationFailed
+		return nil, err
 	}
 
 	errs := map[string]error{}
@@ -105,12 +109,18 @@ func (svc service) RemoveChannel(ctx context.Context, owner, id string) error {
 	}
 
 	r, err := svc.enforcer.RemoveFilteredPolicy(1, id)
-	if err != nil || !r {
+	if err != nil {
+		return errors.Wrap(ErrFailedRemoval, err)
+	}
+	if !r {
 		return ErrFailedRemoval
 	}
 
 	r, err = svc.enforcer.RemoveFilteredPolicy(0, owner, id)
-	if err != nil || !r {
+	if err != nil {
+		return errors.Wrap(ErrFailedRemoval, err)
+	}
+	if !r {
 		return ErrFailedRemoval
 	}
 
@@ -123,13 +133,19 @@ func (svc service) RemoveThing(ctx context.Context, owner, id string) error {
 	}
 
 	r, err := svc.enforcer.RemoveFilteredPolicy(0, id)
-	if err != nil || !r {
-		return ErrFailedRemoval
+	if err != nil {
+		return errors.Wrap(ErrFailedRemoval, err)
+	}
+	if !r {
+		return ErrNotFound
 	}
 
 	r, err = svc.enforcer.RemoveFilteredPolicy(0, owner, id)
-	if err != nil || !r {
-		return ErrFailedRemoval
+	if err != nil {
+		return errors.Wrap(ErrFailedRemoval, err)
+	}
+	if !r {
+		return ErrNotFound
 	}
 
 	return nil
@@ -138,7 +154,10 @@ func (svc service) RemoveThing(ctx context.Context, owner, id string) error {
 func (svc service) isOwner(ctx context.Context, owner string, ids ...string) error {
 	for _, id := range ids {
 		r, err := svc.enforcer.Enforce(owner, id, OwningAct)
-		if err != nil || !r {
+		if err != nil {
+			return errors.Wrap(ErrUnauthorizedAccess, err)
+		}
+		if !r {
 			return ErrUnauthorizedAccess
 		}
 	}
@@ -149,8 +168,11 @@ func (svc service) isOwner(ctx context.Context, owner string, ids ...string) err
 func (svc service) addResource(ctx context.Context, owner string, ids ...string) error {
 	for _, id := range ids {
 		r, err := svc.enforcer.AddPolicy(owner, id, OwningAct)
-		if err != nil || !r {
-			return ErrFailedCreation
+		if err != nil {
+			return errors.Wrap(ErrFailedCreation, err)
+		}
+		if !r {
+			return ErrAlreadyExists
 		}
 	}
 

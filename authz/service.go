@@ -2,7 +2,7 @@ package authz
 
 import (
 	"context"
-	"errors"
+	"github.com/mainflux/mainflux/errors"
 )
 
 var (
@@ -21,6 +21,15 @@ var (
 	// ErrAuthenticationFailed indicates that the given authentication token was
 	// invalid.
 	ErrAuthenticationFailed = errors.New("failed to authenticate given entity")
+
+	// ErrAlreadyExists indcidates that the given entity already exists.
+	ErrAlreadyExists = errors.New("Entity already exists")
+
+	// ErrNotFound indicates that the required entity doesn't exist.
+	ErrNotFound = errors.New("Required entity not found")
+
+	// ErrMalformedEntity indicates that the received entity is malformed.
+	ErrMalformedEntity = errors.New("Received invalid entity")
 )
 
 // Policy contains structured policy description.

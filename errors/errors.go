@@ -26,6 +26,14 @@ type customError struct {
 	err Error
 }
 
+// New returns an Error that formats as the given text.
+func New(text string) Error {
+	return &customError{
+		msg: text,
+		err: nil,
+	}
+}
+
 func (ce *customError) Error() string {
 	if ce != nil {
 		if ce.err != nil {
@@ -82,14 +90,6 @@ func cast(err error) Error {
 	}
 	return &customError{
 		msg: err.Error(),
-		err: nil,
-	}
-}
-
-// New returns an Error that formats as the given text.
-func New(text string) Error {
-	return &customError{
-		msg: text,
 		err: nil,
 	}
 }

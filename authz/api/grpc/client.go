@@ -2,13 +2,13 @@ package grpc
 
 import (
 	"context"
-	"errors"
 
 	kitot "github.com/go-kit/kit/tracing/opentracing"
 	kitgrpc "github.com/go-kit/kit/transport/grpc"
 	"github.com/mainflux/mainflux/authz"
 	"github.com/mainflux/mainflux/authz/api"
 	pb "github.com/mainflux/mainflux/authz/api/pb"
+	"github.com/mainflux/mainflux/errors"
 	opentracing "github.com/opentracing/opentracing-go"
 	"google.golang.org/grpc"
 )
@@ -119,14 +119,6 @@ func encodeRemoveThingRequest(_ context.Context, grpcReq interface{}) (interface
 func decodeErrorResponse(_ context.Context, grpcRes interface{}) (interface{}, error) {
 	res := grpcRes.(*pb.ErrorRes)
 	return api.ErrorRes{
-		Err: str2err(res.Err),
+		Err: errors.New(res.Err),
 	}, nil
-}
-
-func str2err(msg string) error {
-	if msg == "" {
-		return nil
-	}
-
-	return errors.New(msg)
 }
