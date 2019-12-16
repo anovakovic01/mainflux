@@ -19,9 +19,13 @@ import (
 	"testing"
 
 	"github.com/mainflux/mainflux"
+	"github.com/mainflux/mainflux/authz"
+	authzapi "github.com/mainflux/mainflux/authz/api"
+	authzhttp "github.com/mainflux/mainflux/authz/api/http"
 	"github.com/mainflux/mainflux/bootstrap"
 	bsapi "github.com/mainflux/mainflux/bootstrap/api"
 	"github.com/mainflux/mainflux/bootstrap/mocks"
+	"github.com/mainflux/mainflux/logger"
 	mfsdk "github.com/mainflux/mainflux/sdk/go"
 	"github.com/mainflux/mainflux/things"
 	thingsapi "github.com/mainflux/mainflux/things/api/things/http"
@@ -150,10 +154,12 @@ func dec(in []byte) ([]byte, error) {
 	return in, nil
 }
 
-func newService(authn mainflux.AuthNServiceClient, unknown map[string]string, url string) bootstrap.Service {
+func newService(authn mainflux.AuthNServiceClient, unknown map[string]string, url string, ap, thp string) bootstrap.Service {
 	things := mocks.NewConfigsRepository(unknown)
 	config := mfsdk.Config{
-		BaseURL: url,
+		BaseURL:      url,
+		ThingsPrefix: thp,
+		AuthzPrefix:  ap,
 	}
 
 	sdk := mfsdk.NewSDK(config)
@@ -177,9 +183,13 @@ func newThingsService(authn mainflux.AuthNServiceClient) things.Service {
 	return mocks.NewThingsService(map[string]things.Thing{}, generateChannels(), authn)
 }
 
-func newThingsServer(svc things.Service) *httptest.Server {
-	mux := thingsapi.MakeHandler(mocktracer.New(), svc)
-	return httptest.NewServer(mux)
+func newThingsHandler(svc things.Service) http.Handler {
+	return thingsapi.MakeHandler(mocktracer.New(), svc)
+}
+
+func newAuthZHandler(svc authz.Service) http.Handler {
+	l, _ := logger.New(nil, "error")
+	return authzhttp.MakeHandler(authzapi.New(svc, mocktracer.New()), l)
 }
 
 func newBootstrapServer(svc bootstrap.Service) *httptest.Server {
@@ -195,8 +205,9 @@ func toJSON(data interface{}) string {
 func TestAdd(t *testing.T) {
 	users := mocks.NewUsersService(map[string]string{validToken: email})
 
-	ts := newThingsServer(newThingsService(users))
-	svc := newService(users, nil, ts.URL)
+	ts := newThingsHandler(newThingsService(users))
+	server := httptest.NewServer(ts)
+	svc := newService(users, nil, server.URL, "", "")
 	bs := newBootstrapServer(svc)
 
 	data := toJSON(addReq)
@@ -319,8 +330,9 @@ func TestAdd(t *testing.T) {
 func TestView(t *testing.T) {
 	users := mocks.NewUsersService(map[string]string{validToken: email})
 
-	ts := newThingsServer(newThingsService(users))
-	svc := newService(users, nil, ts.URL)
+	ts := newThingsHandler(newThingsService(users))
+	server := httptest.NewServer(ts)
+	svc := newService(users, nil, server.URL, "", "")
 	bs := newBootstrapServer(svc)
 	c := newConfig([]bootstrap.Channel{})
 
@@ -416,8 +428,9 @@ func TestView(t *testing.T) {
 func TestUpdate(t *testing.T) {
 	users := mocks.NewUsersService(map[string]string{validToken: email})
 
-	ts := newThingsServer(newThingsService(users))
-	svc := newService(users, nil, ts.URL)
+	ts := newThingsHandler(newThingsService(users))
+	server := httptest.NewServer(ts)
+	svc := newService(users, nil, server.URL, "", "")
 	bs := newBootstrapServer(svc)
 
 	c := newConfig([]bootstrap.Channel{bootstrap.Channel{ID: "1"}})
@@ -510,8 +523,9 @@ func TestUpdate(t *testing.T) {
 func TestUpdateCert(t *testing.T) {
 	users := mocks.NewUsersService(map[string]string{validToken: email})
 
-	ts := newThingsServer(newThingsService(users))
-	svc := newService(users, nil, ts.URL)
+	ts := newThingsHandler(newThingsService(users))
+	server := httptest.NewServer(ts)
+	svc := newService(users, nil, server.URL, "", "")
 	bs := newBootstrapServer(svc)
 
 	c := newConfig([]bootstrap.Channel{bootstrap.Channel{ID: "1"}})
@@ -605,8 +619,16 @@ func TestUpdateCert(t *testing.T) {
 func TestUpdateConnections(t *testing.T) {
 	users := mocks.NewUsersService(map[string]string{validToken: email})
 
-	ts := newThingsServer(newThingsService(users))
-	svc := newService(users, nil, ts.URL)
+	authzPrefix := "authz"
+	as := newAuthZHandler(mocks.NewAuthZService())
+	thingsPrefix := "things"
+	ts := newThingsHandler(newThingsService(users))
+	merged := http.NewServeMux()
+	merged.Handle(fmt.Sprintf("/%s/", authzPrefix), http.StripPrefix(fmt.Sprintf("/%s", authzPrefix), as))
+	merged.Handle(fmt.Sprintf("/%s/", thingsPrefix), http.StripPrefix(fmt.Sprintf("/%s", thingsPrefix), ts))
+	server := httptest.NewServer(merged)
+
+	svc := newService(users, nil, server.URL, authzPrefix, thingsPrefix)
 	bs := newBootstrapServer(svc)
 
 	c := newConfig([]bootstrap.Channel{bootstrap.Channel{ID: "1"}})
@@ -717,8 +739,15 @@ func TestList(t *testing.T) {
 	list := make([]config, configNum)
 
 	users := mocks.NewUsersService(map[string]string{validToken: email})
-	ts := newThingsServer(newThingsService(users))
-	svc := newService(users, nil, ts.URL)
+	authzPrefix := "authz"
+	as := newAuthZHandler(mocks.NewAuthZService())
+	thingsPrefix := "things"
+	ts := newThingsHandler(newThingsService(users))
+	merged := http.NewServeMux()
+	merged.Handle(fmt.Sprintf("/%s/", authzPrefix), http.StripPrefix(fmt.Sprintf("/%s", authzPrefix), as))
+	merged.Handle(fmt.Sprintf("/%s/", thingsPrefix), http.StripPrefix(fmt.Sprintf("/%s", thingsPrefix), ts))
+	server := httptest.NewServer(merged)
+	svc := newService(users, nil, server.URL, authzPrefix, thingsPrefix)
 	bs := newBootstrapServer(svc)
 	path := fmt.Sprintf("%s/%s", bs.URL, "things/configs")
 
@@ -966,8 +995,9 @@ func TestList(t *testing.T) {
 func TestRemove(t *testing.T) {
 	users := mocks.NewUsersService(map[string]string{validToken: email})
 
-	ts := newThingsServer(newThingsService(users))
-	svc := newService(users, nil, ts.URL)
+	ts := newThingsHandler(newThingsService(users))
+	server := httptest.NewServer(ts)
+	svc := newService(users, nil, server.URL, "", "")
 	bs := newBootstrapServer(svc)
 
 	c := newConfig([]bootstrap.Channel{bootstrap.Channel{ID: "1"}})
@@ -1040,8 +1070,9 @@ func TestListUnknown(t *testing.T) {
 	}
 
 	users := mocks.NewUsersService(map[string]string{validToken: email})
-	ts := newThingsServer(newThingsService(users))
-	svc := newService(users, unknownConfigs, ts.URL)
+	ts := newThingsHandler(newThingsService(users))
+	server := httptest.NewServer(ts)
+	svc := newService(users, unknownConfigs, server.URL, "", "")
 	bs := newBootstrapServer(svc)
 	path := fmt.Sprintf("%s/%s", bs.URL, "things/unknown/configs")
 
@@ -1125,8 +1156,9 @@ func TestListUnknown(t *testing.T) {
 func TestBootstrap(t *testing.T) {
 	users := mocks.NewUsersService(map[string]string{validToken: email})
 
-	ts := newThingsServer(newThingsService(users))
-	svc := newService(users, map[string]string{}, ts.URL)
+	ts := newThingsHandler(newThingsService(users))
+	server := httptest.NewServer(ts)
+	svc := newService(users, map[string]string{}, server.URL, "", "")
 	bs := newBootstrapServer(svc)
 
 	c := newConfig([]bootstrap.Channel{bootstrap.Channel{ID: "1"}})
@@ -1253,8 +1285,15 @@ func TestBootstrap(t *testing.T) {
 func TestChangeState(t *testing.T) {
 	users := mocks.NewUsersService(map[string]string{validToken: email})
 
-	ts := newThingsServer(newThingsService(users))
-	svc := newService(users, nil, ts.URL)
+	authzPrefix := "authz"
+	as := newAuthZHandler(mocks.NewAuthZService())
+	thingsPrefix := "things"
+	ts := newThingsHandler(newThingsService(users))
+	merged := http.NewServeMux()
+	merged.Handle(fmt.Sprintf("/%s/", authzPrefix), http.StripPrefix(fmt.Sprintf("/%s", authzPrefix), as))
+	merged.Handle(fmt.Sprintf("/%s/", thingsPrefix), http.StripPrefix(fmt.Sprintf("/%s", thingsPrefix), ts))
+	server := httptest.NewServer(merged)
+	svc := newService(users, nil, server.URL, authzPrefix, thingsPrefix)
 	bs := newBootstrapServer(svc)
 
 	c := newConfig([]bootstrap.Channel{bootstrap.Channel{ID: "1"}})

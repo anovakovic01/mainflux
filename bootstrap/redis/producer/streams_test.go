@@ -5,6 +5,7 @@ package producer_test
 
 import (
 	"fmt"
+	"net/http"
 	"net/http/httptest"
 	"strconv"
 	"strings"
@@ -15,9 +16,13 @@ import (
 	"github.com/mainflux/mainflux"
 	"github.com/opentracing/opentracing-go/mocktracer"
 
+	"github.com/mainflux/mainflux/authz"
+	authzapi "github.com/mainflux/mainflux/authz/api"
+	authzhttp "github.com/mainflux/mainflux/authz/api/http"
 	"github.com/mainflux/mainflux/bootstrap"
 	"github.com/mainflux/mainflux/bootstrap/mocks"
 	"github.com/mainflux/mainflux/bootstrap/redis/producer"
+	"github.com/mainflux/mainflux/logger"
 	mfsdk "github.com/mainflux/mainflux/sdk/go"
 	"github.com/mainflux/mainflux/things"
 	httpapi "github.com/mainflux/mainflux/things/api/things/http"
@@ -62,14 +67,16 @@ var (
 	}
 )
 
-func newService(auth mainflux.AuthNServiceClient, url string) bootstrap.Service {
+func newService(authn mainflux.AuthNServiceClient, url string, ap, thp string) bootstrap.Service {
 	configs := mocks.NewConfigsRepository(map[string]string{unknownID: unknownKey})
 	config := mfsdk.Config{
-		BaseURL: url,
+		BaseURL:      url,
+		ThingsPrefix: thp,
+		AuthzPrefix:  ap,
 	}
 
 	sdk := mfsdk.NewSDK(config)
-	return bootstrap.New(auth, configs, sdk, encKey)
+	return bootstrap.New(authn, configs, sdk, encKey)
 }
 
 func newThingsService(auth mainflux.AuthNServiceClient) things.Service {
@@ -86,16 +93,22 @@ func newThingsService(auth mainflux.AuthNServiceClient) things.Service {
 	return mocks.NewThingsService(map[string]things.Thing{}, channels, auth)
 }
 
-func newThingsServer(svc things.Service) *httptest.Server {
-	mux := httpapi.MakeHandler(mocktracer.New(), svc)
-	return httptest.NewServer(mux)
+func newThingsHandler(svc things.Service) http.Handler {
+	return httpapi.MakeHandler(mocktracer.New(), svc)
 }
+
+func newAuthZHandler(svc authz.Service) http.Handler {
+	l, _ := logger.New(nil, "error")
+	return authzhttp.MakeHandler(authzapi.New(svc, mocktracer.New()), l)
+}
+
 func TestAdd(t *testing.T) {
 	redisClient.FlushAll().Err()
 	users := mocks.NewUsersService(map[string]string{validToken: email})
 
-	server := newThingsServer(newThingsService(users))
-	svc := newService(users, server.URL)
+	ts := newThingsHandler(newThingsService(users))
+	server := httptest.NewServer(ts)
+	svc := newService(users, server.URL, "", "")
 	svc = producer.NewEventStoreMiddleware(svc, redisClient)
 
 	var channels []string
@@ -162,8 +175,9 @@ func TestAdd(t *testing.T) {
 
 func TestView(t *testing.T) {
 	users := mocks.NewUsersService(map[string]string{validToken: email})
-	server := newThingsServer(newThingsService(users))
-	svc := newService(users, server.URL)
+	ts := newThingsHandler(newThingsService(users))
+	server := httptest.NewServer(ts)
+	svc := newService(users, server.URL, "", "")
 
 	saved, err := svc.Add(validToken, config)
 	require.Nil(t, err, fmt.Sprintf("Saving config expected to succeed: %s.\n", err))
@@ -181,8 +195,9 @@ func TestUpdate(t *testing.T) {
 	redisClient.FlushAll().Err()
 
 	users := mocks.NewUsersService(map[string]string{validToken: email})
-	server := newThingsServer(newThingsService(users))
-	svc := newService(users, server.URL)
+	ts := newThingsHandler(newThingsService(users))
+	server := httptest.NewServer(ts)
+	svc := newService(users, server.URL, "", "")
 	svc = producer.NewEventStoreMiddleware(svc, redisClient)
 
 	c := config
@@ -256,8 +271,9 @@ func TestUpdateConnections(t *testing.T) {
 	redisClient.FlushAll().Err()
 
 	users := mocks.NewUsersService(map[string]string{validToken: email})
-	server := newThingsServer(newThingsService(users))
-	svc := newService(users, server.URL)
+	ts := newThingsHandler(newThingsService(users))
+	server := httptest.NewServer(ts)
+	svc := newService(users, server.URL, "", "")
 	svc = producer.NewEventStoreMiddleware(svc, redisClient)
 
 	saved, err := svc.Add(validToken, config)
@@ -318,8 +334,9 @@ func TestUpdateConnections(t *testing.T) {
 }
 func TestList(t *testing.T) {
 	users := mocks.NewUsersService(map[string]string{validToken: email})
-	server := newThingsServer(newThingsService(users))
-	svc := newService(users, server.URL)
+	ts := newThingsHandler(newThingsService(users))
+	server := httptest.NewServer(ts)
+	svc := newService(users, server.URL, "", "")
 
 	_, err := svc.Add(validToken, config)
 	require.Nil(t, err, fmt.Sprintf("Saving config expected to succeed: %s.\n", err))
@@ -339,8 +356,9 @@ func TestRemove(t *testing.T) {
 	redisClient.FlushAll().Err()
 
 	users := mocks.NewUsersService(map[string]string{validToken: email})
-	server := newThingsServer(newThingsService(users))
-	svc := newService(users, server.URL)
+	ts := newThingsHandler(newThingsService(users))
+	server := httptest.NewServer(ts)
+	svc := newService(users, server.URL, "", "")
 	svc = producer.NewEventStoreMiddleware(svc, redisClient)
 
 	c := config
@@ -402,8 +420,9 @@ func TestBootstrap(t *testing.T) {
 	redisClient.FlushAll().Err()
 
 	users := mocks.NewUsersService(map[string]string{validToken: email})
-	server := newThingsServer(newThingsService(users))
-	svc := newService(users, server.URL)
+	ts := newThingsHandler(newThingsService(users))
+	server := httptest.NewServer(ts)
+	svc := newService(users, server.URL, "", "")
 	svc = producer.NewEventStoreMiddleware(svc, redisClient)
 
 	c := config
@@ -471,8 +490,15 @@ func TestChangeState(t *testing.T) {
 	redisClient.FlushAll().Err()
 
 	users := mocks.NewUsersService(map[string]string{validToken: email})
-	server := newThingsServer(newThingsService(users))
-	svc := newService(users, server.URL)
+	authzPrefix := "authz"
+	as := newAuthZHandler(mocks.NewAuthZService())
+	thingsPrefix := "things"
+	ts := newThingsHandler(newThingsService(users))
+	merged := http.NewServeMux()
+	merged.Handle(fmt.Sprintf("/%s/", authzPrefix), http.StripPrefix(fmt.Sprintf("/%s", authzPrefix), as))
+	merged.Handle(fmt.Sprintf("/%s/", thingsPrefix), http.StripPrefix(fmt.Sprintf("/%s", thingsPrefix), ts))
+	server := httptest.NewServer(merged)
+	svc := newService(users, server.URL, authzPrefix, thingsPrefix)
 	svc = producer.NewEventStoreMiddleware(svc, redisClient)
 
 	c := config

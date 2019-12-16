@@ -10,6 +10,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
+	"net/http"
 	"net/http/httptest"
 	"strconv"
 	"testing"
@@ -18,8 +19,12 @@ import (
 
 	"github.com/gofrs/uuid"
 	"github.com/mainflux/mainflux"
+	"github.com/mainflux/mainflux/authz"
+	authzapi "github.com/mainflux/mainflux/authz/api"
+	authzhttp "github.com/mainflux/mainflux/authz/api/http"
 	"github.com/mainflux/mainflux/bootstrap"
 	"github.com/mainflux/mainflux/bootstrap/mocks"
+	"github.com/mainflux/mainflux/logger"
 	mfsdk "github.com/mainflux/mainflux/sdk/go"
 	"github.com/mainflux/mainflux/things"
 	httpapi "github.com/mainflux/mainflux/things/api/things/http"
@@ -54,14 +59,16 @@ var (
 	}
 )
 
-func newService(auth mainflux.AuthNServiceClient, url string) bootstrap.Service {
+func newService(authn mainflux.AuthNServiceClient, url string, ap, thp string) bootstrap.Service {
 	things := mocks.NewConfigsRepository(map[string]string{unknownID: unknownKey})
 	config := mfsdk.Config{
-		BaseURL: url,
+		BaseURL:      url,
+		ThingsPrefix: thp,
+		AuthzPrefix:  ap,
 	}
 
 	sdk := mfsdk.NewSDK(config)
-	return bootstrap.New(auth, things, sdk, encKey)
+	return bootstrap.New(authn, things, sdk, encKey)
 }
 
 func newThingsService(auth mainflux.AuthNServiceClient) things.Service {
@@ -78,9 +85,13 @@ func newThingsService(auth mainflux.AuthNServiceClient) things.Service {
 	return mocks.NewThingsService(map[string]things.Thing{}, channels, auth)
 }
 
-func newThingsServer(svc things.Service) *httptest.Server {
-	mux := httpapi.MakeHandler(mocktracer.New(), svc)
-	return httptest.NewServer(mux)
+func newThingsHandler(svc things.Service) http.Handler {
+	return httpapi.MakeHandler(mocktracer.New(), svc)
+}
+
+func newAuthZHandler(svc authz.Service) http.Handler {
+	l, _ := logger.New(nil, "error")
+	return authzhttp.MakeHandler(authzapi.New(svc, mocktracer.New()), l)
 }
 
 func enc(in []byte) ([]byte, error) {
@@ -101,8 +112,9 @@ func enc(in []byte) ([]byte, error) {
 func TestAdd(t *testing.T) {
 	users := mocks.NewUsersService(map[string]string{validToken: email})
 
-	server := newThingsServer(newThingsService(users))
-	svc := newService(users, server.URL)
+	ts := newThingsHandler(newThingsService(users))
+	server := httptest.NewServer(ts)
+	svc := newService(users, server.URL, "", "")
 
 	neID := config
 	neID.MFThing = "non-existent"
@@ -153,8 +165,9 @@ func TestAdd(t *testing.T) {
 func TestView(t *testing.T) {
 	users := mocks.NewUsersService(map[string]string{validToken: email})
 
-	server := newThingsServer(newThingsService(users))
-	svc := newService(users, server.URL)
+	ts := newThingsHandler(newThingsService(users))
+	server := httptest.NewServer(ts)
+	svc := newService(users, server.URL, "", "")
 
 	saved, err := svc.Add(validToken, config)
 	require.Nil(t, err, fmt.Sprintf("Saving config expected to succeed: %s.\n", err))
@@ -194,8 +207,9 @@ func TestView(t *testing.T) {
 func TestUpdate(t *testing.T) {
 	users := mocks.NewUsersService(map[string]string{validToken: email})
 
-	server := newThingsServer(newThingsService(users))
-	svc := newService(users, server.URL)
+	ts := newThingsHandler(newThingsService(users))
+	server := httptest.NewServer(ts)
+	svc := newService(users, server.URL, "", "")
 	c := config
 
 	ch := channel
@@ -246,8 +260,9 @@ func TestUpdate(t *testing.T) {
 func TestUpdateCert(t *testing.T) {
 	users := mocks.NewUsersService(map[string]string{validToken: email})
 
-	server := newThingsServer(newThingsService(users))
-	svc := newService(users, server.URL)
+	ts := newThingsHandler(newThingsService(users))
+	server := httptest.NewServer(ts)
+	svc := newService(users, server.URL, "", "")
 	c := config
 
 	ch := channel
@@ -304,8 +319,16 @@ func TestUpdateCert(t *testing.T) {
 func TestUpdateConnections(t *testing.T) {
 	users := mocks.NewUsersService(map[string]string{validToken: email})
 
-	server := newThingsServer(newThingsService(users))
-	svc := newService(users, server.URL)
+	authzPrefix := "authz"
+	as := newAuthZHandler(mocks.NewAuthZService())
+	thingsPrefix := "things"
+	ts := newThingsHandler(newThingsService(users))
+	merged := http.NewServeMux()
+	merged.Handle(fmt.Sprintf("/%s/", authzPrefix), http.StripPrefix(fmt.Sprintf("/%s", authzPrefix), as))
+	merged.Handle(fmt.Sprintf("/%s/", thingsPrefix), http.StripPrefix(fmt.Sprintf("/%s", thingsPrefix), ts))
+	server := httptest.NewServer(merged)
+
+	svc := newService(users, server.URL, authzPrefix, thingsPrefix)
 	c := config
 
 	ch := channel
@@ -378,8 +401,15 @@ func TestUpdateConnections(t *testing.T) {
 func TestList(t *testing.T) {
 	users := mocks.NewUsersService(map[string]string{validToken: email})
 
-	server := newThingsServer(newThingsService(users))
-	svc := newService(users, server.URL)
+	authzPrefix := "authz"
+	as := newAuthZHandler(mocks.NewAuthZService())
+	thingsPrefix := "things"
+	ts := newThingsHandler(newThingsService(users))
+	merged := http.NewServeMux()
+	merged.Handle(fmt.Sprintf("/%s/", authzPrefix), http.StripPrefix(fmt.Sprintf("/%s", authzPrefix), as))
+	merged.Handle(fmt.Sprintf("/%s/", thingsPrefix), http.StripPrefix(fmt.Sprintf("/%s", thingsPrefix), ts))
+	server := httptest.NewServer(merged)
+	svc := newService(users, server.URL, authzPrefix, thingsPrefix)
 
 	numThings := 101
 	var saved []bootstrap.Config
@@ -505,8 +535,9 @@ func TestList(t *testing.T) {
 func TestRemove(t *testing.T) {
 	users := mocks.NewUsersService(map[string]string{validToken: email})
 
-	server := newThingsServer(newThingsService(users))
-	svc := newService(users, server.URL)
+	ts := newThingsHandler(newThingsService(users))
+	server := httptest.NewServer(ts)
+	svc := newService(users, server.URL, "", "")
 
 	saved, err := svc.Add(validToken, config)
 	require.Nil(t, err, fmt.Sprintf("Saving config expected to succeed: %s.\n", err))
@@ -552,8 +583,9 @@ func TestRemove(t *testing.T) {
 func TestBootstrap(t *testing.T) {
 	users := mocks.NewUsersService(map[string]string{validToken: email})
 
-	server := newThingsServer(newThingsService(users))
-	svc := newService(users, server.URL)
+	ts := newThingsHandler(newThingsService(users))
+	server := httptest.NewServer(ts)
+	svc := newService(users, server.URL, "", "")
 
 	saved, err := svc.Add(validToken, config)
 	require.Nil(t, err, fmt.Sprintf("Saving config expected to succeed: %s.\n", err))
@@ -613,8 +645,15 @@ func TestBootstrap(t *testing.T) {
 func TestChangeState(t *testing.T) {
 	users := mocks.NewUsersService(map[string]string{validToken: email})
 
-	server := newThingsServer(newThingsService(users))
-	svc := newService(users, server.URL)
+	authzPrefix := "authz"
+	as := newAuthZHandler(mocks.NewAuthZService())
+	thingsPrefix := "things"
+	ts := newThingsHandler(newThingsService(users))
+	merged := http.NewServeMux()
+	merged.Handle(fmt.Sprintf("/%s/", authzPrefix), http.StripPrefix(fmt.Sprintf("/%s", authzPrefix), as))
+	merged.Handle(fmt.Sprintf("/%s/", thingsPrefix), http.StripPrefix(fmt.Sprintf("/%s", thingsPrefix), ts))
+	server := httptest.NewServer(merged)
+	svc := newService(users, server.URL, authzPrefix, thingsPrefix)
 
 	saved, err := svc.Add(validToken, config)
 	require.Nil(t, err, fmt.Sprintf("Saving config expected to succeed: %s.\n", err))
@@ -672,8 +711,9 @@ func TestChangeState(t *testing.T) {
 func TestUpdateChannelHandler(t *testing.T) {
 	users := mocks.NewUsersService(map[string]string{validToken: email})
 
-	server := newThingsServer(newThingsService(users))
-	svc := newService(users, server.URL)
+	ts := newThingsHandler(newThingsService(users))
+	server := httptest.NewServer(ts)
+	svc := newService(users, server.URL, "", "")
 
 	_, err := svc.Add(validToken, config)
 	require.Nil(t, err, fmt.Sprintf("Saving config expected to succeed: %s.\n", err))
@@ -709,8 +749,9 @@ func TestUpdateChannelHandler(t *testing.T) {
 func TestRemoveChannelHandler(t *testing.T) {
 	users := mocks.NewUsersService(map[string]string{validToken: email})
 
-	server := newThingsServer(newThingsService(users))
-	svc := newService(users, server.URL)
+	ts := newThingsHandler(newThingsService(users))
+	server := httptest.NewServer(ts)
+	svc := newService(users, server.URL, "", "")
 
 	_, err := svc.Add(validToken, config)
 	require.Nil(t, err, fmt.Sprintf("Saving config expected to succeed: %s.\n", err))
@@ -741,8 +782,9 @@ func TestRemoveChannelHandler(t *testing.T) {
 func TestRemoveCoinfigHandler(t *testing.T) {
 	users := mocks.NewUsersService(map[string]string{validToken: email})
 
-	server := newThingsServer(newThingsService(users))
-	svc := newService(users, server.URL)
+	ts := newThingsHandler(newThingsService(users))
+	server := httptest.NewServer(ts)
+	svc := newService(users, server.URL, "", "")
 
 	saved, err := svc.Add(validToken, config)
 	require.Nil(t, err, fmt.Sprintf("Saving config expected to succeed: %s.\n", err))
@@ -773,8 +815,9 @@ func TestRemoveCoinfigHandler(t *testing.T) {
 func TestDisconnectThingsHandler(t *testing.T) {
 	users := mocks.NewUsersService(map[string]string{validToken: email})
 
-	server := newThingsServer(newThingsService(users))
-	svc := newService(users, server.URL)
+	ts := newThingsHandler(newThingsService(users))
+	server := httptest.NewServer(ts)
+	svc := newService(users, server.URL, "", "")
 
 	saved, err := svc.Add(validToken, config)
 	require.Nil(t, err, fmt.Sprintf("Saving config expected to succeed: %s.\n", err))
