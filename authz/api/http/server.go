@@ -87,6 +87,7 @@ func encodeResponse(ctx context.Context, w http.ResponseWriter, response interfa
 		return nil
 	}
 	w.Header().Set("Content-Type", contentType)
+
 	return json.NewEncoder(w).Encode(response)
 }
 

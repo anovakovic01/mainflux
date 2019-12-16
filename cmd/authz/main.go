@@ -25,6 +25,7 @@ import (
 	"github.com/mainflux/mainflux"
 	authngrpc "github.com/mainflux/mainflux/authn/api/grpc"
 	"github.com/mainflux/mainflux/authz/api"
+	_ "github.com/mainflux/mainflux/authz/api/docs"
 	authzgrpc "github.com/mainflux/mainflux/authz/api/grpc"
 	httpapi "github.com/mainflux/mainflux/authz/api/http"
 	pb "github.com/mainflux/mainflux/authz/api/pb"

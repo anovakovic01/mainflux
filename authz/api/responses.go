@@ -13,8 +13,8 @@ func (res ErrorRes) Failed() error {
 // BatchErrorRes contains error response for the batch operations that can
 // partially fail.
 type BatchErrorRes struct {
-	Err  error
-	Errs map[string]error
+	Err  error            `json:"-"`
+	Errs map[string]error `json:"errors"`
 }
 
 // Failed returns single business logic error if there is any. This method

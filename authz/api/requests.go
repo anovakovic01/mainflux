@@ -31,16 +31,16 @@ func (req AuthZReq) validate() error {
 // CreateConnectionsReq contains data necessary for connecting things and
 // channels.
 type CreateConnectionsReq struct {
-	Token       string
-	Connections map[string]ConnectReq
+	Token       string                `json:"-"`
+	Connections map[string]ConnectReq `json:"connections"`
 }
 
 // ConnectReq represents add policy request. It contains all of the fields
 // that are needed in order to create a policy.
 type ConnectReq struct {
-	Sub string
-	Obj string
-	Act string
+	Sub string `json:"sub"`
+	Obj string `json:"obj"`
+	Act string `json:"act"`
 }
 
 func (req ConnectReq) validate() error {
@@ -62,8 +62,8 @@ func (req ConnectReq) validate() error {
 // RemoveConnectionsReq contains data necessary for disconnecting things and
 // channels.
 type RemoveConnectionsReq struct {
-	Token       string
-	Connections map[string]ConnectReq
+	Token       string                `json:"-"`
+	Connections map[string]ConnectReq `json:"connections"`
 }
 
 // AddThingsReq represents add multiple things request. If contains just

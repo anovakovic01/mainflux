@@ -1,0 +1,127 @@
+basePath: /
+consumes:
+- application/json
+definitions:
+  BatchErrorRes:
+    description: |-
+      BatchErrorRes contains error response for the batch operations that can
+      partially fail.
+    properties:
+      errors:
+        additionalProperties:
+          type: string
+        type: object
+        x-go-name: Errs
+    type: object
+    x-go-package: github.com/mainflux/mainflux/authz/api
+  ConnectReq:
+    description: |-
+      ConnectReq represents add policy request. It contains all of the fields
+      that are needed in order to create a policy.
+    properties:
+      act:
+        type: string
+        x-go-name: Act
+      obj:
+        type: string
+        x-go-name: Obj
+      sub:
+        type: string
+        x-go-name: Sub
+    type: object
+    x-go-package: github.com/mainflux/mainflux/authz/api
+  CreateConnectionsReq:
+    description: |-
+      CreateConnectionsReq contains data necessary for connecting things and
+      channels.
+    properties:
+      connections:
+        additionalProperties:
+          $ref: '#/definitions/ConnectReq'
+        type: object
+        x-go-name: Connections
+    type: object
+    x-go-package: github.com/mainflux/mainflux/authz/api
+  RemoveConnectionsReq:
+    description: |-
+      RemoveConnectionsReq contains data necessary for disconnecting things and
+      channels.
+    properties:
+      connections:
+        additionalProperties:
+          $ref: '#/definitions/ConnectReq'
+        type: object
+        x-go-name: Connections
+    type: object
+    x-go-package: github.com/mainflux/mainflux/authz/api
+info:
+  description: Documentation of Authorization service API.
+  title: Mainflux Authorization Service.
+  version: 0.9.0
+paths:
+  /connect:
+    post:
+      operationId: createConnectionsEndpoint
+      parameters:
+      - description: |-
+          This request contains set of rules. Every rule contains subject, object
+          and action.
+        in: body
+        name: Body
+        schema:
+          $ref: '#/definitions/CreateConnectionsReq'
+      responses:
+        "200":
+          $ref: '#/responses/batchErrorResponse'
+        "400":
+          description: ' Received invalid request.'
+        "401":
+          description: ' Authorization failed.'
+        "409":
+          description: ' Connection already exists.'
+        "500":
+          description: ' Unexpected error happened.'
+      summary: Gives a write or read access to the given subjects over given objects.
+      tags:
+      - connection
+  /disconnect:
+    post:
+      operationId: removeConnectionsEndpoint
+      parameters:
+      - in: body
+        name: Body
+        schema:
+          $ref: '#/definitions/RemoveConnectionsReq'
+      responses:
+        "200":
+          $ref: '#/responses/batchErrorResponse'
+        "400":
+          description: ' Received invalid request.'
+        "401":
+          description: ' Authorization failed.'
+        "409":
+          description: ' Connection already exists.'
+        "500":
+          description: ' Unexpected error happened.'
+      summary: Remove a write or read access to the given subjects over given objects.
+      tags:
+      - connection
+produces:
+- application/json
+responses:
+  batchErrorResponse:
+    description: |-
+      Response body will contain a map of errors. Keys for this map will be
+      used as correlation IDs in order to get errors for specific rules. If
+      operation fails in general, then you will get error description under
+      "error" key.
+    schema:
+      $ref: '#/definitions/BatchErrorRes'
+schemes:
+- http
+securityDefinitions:
+  authToken:
+    in: header
+    name: Authorization
+    type: apiKey
+swagger: "2.0"

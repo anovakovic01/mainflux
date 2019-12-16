@@ -7,6 +7,7 @@ SERVICES = authz authn users things http ws coap lora influxdb-writer influxdb-r
 	postgres-writer postgres-reader cli bootstrap opcua
 DOCKERS = $(addprefix docker_,$(SERVICES))
 DOCKERS_DEV = $(addprefix docker_dev_,$(SERVICES))
+SWAGGER = $(addprefix swagger_,$(SERVICES))
 CGO_ENABLED ?= 0
 GOARCH ?= amd64
 
@@ -34,6 +35,15 @@ define make_docker_dev
 		--build-arg SVC=$(svc) \
 		--tag=mainflux/$(svc) \
 		-f docker/Dockerfile.dev ./build
+endef
+
+define make_swagger
+    $(eval svc=$(subst swagger_,,$(1)))
+
+	GO111MODULE=off swagger generate spec \
+	    -w ./$(svc) \
+		-o ./$(svc)/swagger.yaml \
+		--scan-models
 endef
 
 all: $(SERVICES) mqtt
@@ -69,6 +79,9 @@ install:
 
 test:
 	go test -mod=vendor -v -race -count 1 -tags test $(shell go list ./... | grep -v 'vendor\|cmd')
+
+$(SWAGGER):
+	$(call make_swagger,$(@))
 
 proto:
 	protoc --gofast_out=plugins=grpc:. *.proto
