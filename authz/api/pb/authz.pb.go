@@ -8,8 +8,11 @@ import (
 	fmt "fmt"
 	proto "github.com/golang/protobuf/proto"
 	grpc "google.golang.org/grpc"
+	codes "google.golang.org/grpc/codes"
+	status "google.golang.org/grpc/status"
 	io "io"
 	math "math"
+	math_bits "math/bits"
 )
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -21,7 +24,7 @@ var _ = math.Inf
 // is compatible with the proto package it is being compiled against.
 // A compilation error at this line likely means your copy of the
 // proto package needs to be updated.
-const _ = proto.ProtoPackageIsVersion2 // please upgrade the proto package
+const _ = proto.ProtoPackageIsVersion3 // please upgrade the proto package
 
 type AuthorizeReq struct {
 	Sub                  string   `protobuf:"bytes,1,opt,name=sub,proto3" json:"sub,omitempty"`
@@ -46,7 +49,7 @@ func (m *AuthorizeReq) XXX_Marshal(b []byte, deterministic bool) ([]byte, error)
 		return xxx_messageInfo_AuthorizeReq.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -108,7 +111,7 @@ func (m *AddThingsReq) XXX_Marshal(b []byte, deterministic bool) ([]byte, error)
 		return xxx_messageInfo_AddThingsReq.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -163,7 +166,7 @@ func (m *AddChannelsReq) XXX_Marshal(b []byte, deterministic bool) ([]byte, erro
 		return xxx_messageInfo_AddChannelsReq.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -218,7 +221,7 @@ func (m *RemoveThingReq) XXX_Marshal(b []byte, deterministic bool) ([]byte, erro
 		return xxx_messageInfo_RemoveThingReq.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -273,7 +276,7 @@ func (m *RemoveChannelReq) XXX_Marshal(b []byte, deterministic bool) ([]byte, er
 		return xxx_messageInfo_RemoveChannelReq.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -327,7 +330,7 @@ func (m *ErrorRes) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 		return xxx_messageInfo_ErrorRes.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
-		n, err := m.MarshalTo(b)
+		n, err := m.MarshalToSizedBuffer(b)
 		if err != nil {
 			return nil, err
 		}
@@ -469,6 +472,26 @@ type AuthZServiceServer interface {
 	RemoveChannel(context.Context, *RemoveChannelReq) (*ErrorRes, error)
 }
 
+// UnimplementedAuthZServiceServer can be embedded to have forward compatible implementations.
+type UnimplementedAuthZServiceServer struct {
+}
+
+func (*UnimplementedAuthZServiceServer) Authorize(ctx context.Context, req *AuthorizeReq) (*ErrorRes, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Authorize not implemented")
+}
+func (*UnimplementedAuthZServiceServer) AddThings(ctx context.Context, req *AddThingsReq) (*ErrorRes, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method AddThings not implemented")
+}
+func (*UnimplementedAuthZServiceServer) AddChannels(ctx context.Context, req *AddChannelsReq) (*ErrorRes, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method AddChannels not implemented")
+}
+func (*UnimplementedAuthZServiceServer) RemoveThing(ctx context.Context, req *RemoveThingReq) (*ErrorRes, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method RemoveThing not implemented")
+}
+func (*UnimplementedAuthZServiceServer) RemoveChannel(ctx context.Context, req *RemoveChannelReq) (*ErrorRes, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method RemoveChannel not implemented")
+}
+
 func RegisterAuthZServiceServer(s *grpc.Server, srv AuthZServiceServer) {
 	s.RegisterService(&_AuthZService_serviceDesc, srv)
 }
@@ -595,7 +618,7 @@ var _AuthZService_serviceDesc = grpc.ServiceDesc{
 func (m *AuthorizeReq) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -603,38 +626,47 @@ func (m *AuthorizeReq) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *AuthorizeReq) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *AuthorizeReq) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
-	if len(m.Sub) > 0 {
-		dAtA[i] = 0xa
-		i++
-		i = encodeVarintAuthz(dAtA, i, uint64(len(m.Sub)))
-		i += copy(dAtA[i:], m.Sub)
-	}
-	if len(m.Obj) > 0 {
-		dAtA[i] = 0x12
-		i++
-		i = encodeVarintAuthz(dAtA, i, uint64(len(m.Obj)))
-		i += copy(dAtA[i:], m.Obj)
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
 	}
 	if len(m.Act) > 0 {
-		dAtA[i] = 0x1a
-		i++
+		i -= len(m.Act)
+		copy(dAtA[i:], m.Act)
 		i = encodeVarintAuthz(dAtA, i, uint64(len(m.Act)))
-		i += copy(dAtA[i:], m.Act)
+		i--
+		dAtA[i] = 0x1a
 	}
-	if m.XXX_unrecognized != nil {
-		i += copy(dAtA[i:], m.XXX_unrecognized)
+	if len(m.Obj) > 0 {
+		i -= len(m.Obj)
+		copy(dAtA[i:], m.Obj)
+		i = encodeVarintAuthz(dAtA, i, uint64(len(m.Obj)))
+		i--
+		dAtA[i] = 0x12
 	}
-	return i, nil
+	if len(m.Sub) > 0 {
+		i -= len(m.Sub)
+		copy(dAtA[i:], m.Sub)
+		i = encodeVarintAuthz(dAtA, i, uint64(len(m.Sub)))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
 }
 
 func (m *AddThingsReq) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -642,41 +674,42 @@ func (m *AddThingsReq) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *AddThingsReq) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *AddThingsReq) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
-	if len(m.Owner) > 0 {
-		dAtA[i] = 0xa
-		i++
-		i = encodeVarintAuthz(dAtA, i, uint64(len(m.Owner)))
-		i += copy(dAtA[i:], m.Owner)
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
 	}
 	if len(m.Ids) > 0 {
-		for _, s := range m.Ids {
+		for iNdEx := len(m.Ids) - 1; iNdEx >= 0; iNdEx-- {
+			i -= len(m.Ids[iNdEx])
+			copy(dAtA[i:], m.Ids[iNdEx])
+			i = encodeVarintAuthz(dAtA, i, uint64(len(m.Ids[iNdEx])))
+			i--
 			dAtA[i] = 0x12
-			i++
-			l = len(s)
-			for l >= 1<<7 {
-				dAtA[i] = uint8(uint64(l)&0x7f | 0x80)
-				l >>= 7
-				i++
-			}
-			dAtA[i] = uint8(l)
-			i++
-			i += copy(dAtA[i:], s)
 		}
 	}
-	if m.XXX_unrecognized != nil {
-		i += copy(dAtA[i:], m.XXX_unrecognized)
+	if len(m.Owner) > 0 {
+		i -= len(m.Owner)
+		copy(dAtA[i:], m.Owner)
+		i = encodeVarintAuthz(dAtA, i, uint64(len(m.Owner)))
+		i--
+		dAtA[i] = 0xa
 	}
-	return i, nil
+	return len(dAtA) - i, nil
 }
 
 func (m *AddChannelsReq) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -684,41 +717,42 @@ func (m *AddChannelsReq) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *AddChannelsReq) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *AddChannelsReq) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
-	if len(m.Owner) > 0 {
-		dAtA[i] = 0xa
-		i++
-		i = encodeVarintAuthz(dAtA, i, uint64(len(m.Owner)))
-		i += copy(dAtA[i:], m.Owner)
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
 	}
 	if len(m.Ids) > 0 {
-		for _, s := range m.Ids {
+		for iNdEx := len(m.Ids) - 1; iNdEx >= 0; iNdEx-- {
+			i -= len(m.Ids[iNdEx])
+			copy(dAtA[i:], m.Ids[iNdEx])
+			i = encodeVarintAuthz(dAtA, i, uint64(len(m.Ids[iNdEx])))
+			i--
 			dAtA[i] = 0x12
-			i++
-			l = len(s)
-			for l >= 1<<7 {
-				dAtA[i] = uint8(uint64(l)&0x7f | 0x80)
-				l >>= 7
-				i++
-			}
-			dAtA[i] = uint8(l)
-			i++
-			i += copy(dAtA[i:], s)
 		}
 	}
-	if m.XXX_unrecognized != nil {
-		i += copy(dAtA[i:], m.XXX_unrecognized)
+	if len(m.Owner) > 0 {
+		i -= len(m.Owner)
+		copy(dAtA[i:], m.Owner)
+		i = encodeVarintAuthz(dAtA, i, uint64(len(m.Owner)))
+		i--
+		dAtA[i] = 0xa
 	}
-	return i, nil
+	return len(dAtA) - i, nil
 }
 
 func (m *RemoveThingReq) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -726,32 +760,40 @@ func (m *RemoveThingReq) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *RemoveThingReq) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *RemoveThingReq) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
-	if len(m.Id) > 0 {
-		dAtA[i] = 0xa
-		i++
-		i = encodeVarintAuthz(dAtA, i, uint64(len(m.Id)))
-		i += copy(dAtA[i:], m.Id)
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
 	}
 	if len(m.Owner) > 0 {
-		dAtA[i] = 0x12
-		i++
+		i -= len(m.Owner)
+		copy(dAtA[i:], m.Owner)
 		i = encodeVarintAuthz(dAtA, i, uint64(len(m.Owner)))
-		i += copy(dAtA[i:], m.Owner)
+		i--
+		dAtA[i] = 0x12
 	}
-	if m.XXX_unrecognized != nil {
-		i += copy(dAtA[i:], m.XXX_unrecognized)
+	if len(m.Id) > 0 {
+		i -= len(m.Id)
+		copy(dAtA[i:], m.Id)
+		i = encodeVarintAuthz(dAtA, i, uint64(len(m.Id)))
+		i--
+		dAtA[i] = 0xa
 	}
-	return i, nil
+	return len(dAtA) - i, nil
 }
 
 func (m *RemoveChannelReq) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -759,32 +801,40 @@ func (m *RemoveChannelReq) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *RemoveChannelReq) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *RemoveChannelReq) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
-	if len(m.Id) > 0 {
-		dAtA[i] = 0xa
-		i++
-		i = encodeVarintAuthz(dAtA, i, uint64(len(m.Id)))
-		i += copy(dAtA[i:], m.Id)
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
 	}
 	if len(m.Owner) > 0 {
-		dAtA[i] = 0x12
-		i++
+		i -= len(m.Owner)
+		copy(dAtA[i:], m.Owner)
 		i = encodeVarintAuthz(dAtA, i, uint64(len(m.Owner)))
-		i += copy(dAtA[i:], m.Owner)
+		i--
+		dAtA[i] = 0x12
 	}
-	if m.XXX_unrecognized != nil {
-		i += copy(dAtA[i:], m.XXX_unrecognized)
+	if len(m.Id) > 0 {
+		i -= len(m.Id)
+		copy(dAtA[i:], m.Id)
+		i = encodeVarintAuthz(dAtA, i, uint64(len(m.Id)))
+		i--
+		dAtA[i] = 0xa
 	}
-	return i, nil
+	return len(dAtA) - i, nil
 }
 
 func (m *ErrorRes) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
 	if err != nil {
 		return nil, err
 	}
@@ -792,30 +842,39 @@ func (m *ErrorRes) Marshal() (dAtA []byte, err error) {
 }
 
 func (m *ErrorRes) MarshalTo(dAtA []byte) (int, error) {
-	var i int
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *ErrorRes) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
-	if len(m.Err) > 0 {
-		dAtA[i] = 0xa
-		i++
-		i = encodeVarintAuthz(dAtA, i, uint64(len(m.Err)))
-		i += copy(dAtA[i:], m.Err)
-	}
 	if m.XXX_unrecognized != nil {
-		i += copy(dAtA[i:], m.XXX_unrecognized)
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
 	}
-	return i, nil
+	if len(m.Err) > 0 {
+		i -= len(m.Err)
+		copy(dAtA[i:], m.Err)
+		i = encodeVarintAuthz(dAtA, i, uint64(len(m.Err)))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
 }
 
 func encodeVarintAuthz(dAtA []byte, offset int, v uint64) int {
+	offset -= sovAuthz(v)
+	base := offset
 	for v >= 1<<7 {
 		dAtA[offset] = uint8(v&0x7f | 0x80)
 		v >>= 7
 		offset++
 	}
 	dAtA[offset] = uint8(v)
-	return offset + 1
+	return base
 }
 func (m *AuthorizeReq) Size() (n int) {
 	if m == nil {
@@ -942,14 +1001,7 @@ func (m *ErrorRes) Size() (n int) {
 }
 
 func sovAuthz(x uint64) (n int) {
-	for {
-		n++
-		x >>= 7
-		if x == 0 {
-			break
-		}
-	}
-	return n
+	return (math_bits.Len64(x|1) + 6) / 7
 }
 func sozAuthz(x uint64) (n int) {
 	return sovAuthz(uint64((x << 1) ^ uint64((int64(x) >> 63))))
@@ -1665,6 +1717,7 @@ func (m *ErrorRes) Unmarshal(dAtA []byte) error {
 func skipAuthz(dAtA []byte) (n int, err error) {
 	l := len(dAtA)
 	iNdEx := 0
+	depth := 0
 	for iNdEx < l {
 		var wire uint64
 		for shift := uint(0); ; shift += 7 {
@@ -1696,10 +1749,8 @@ func skipAuthz(dAtA []byte) (n int, err error) {
 					break
 				}
 			}
-			return iNdEx, nil
 		case 1:
 			iNdEx += 8
-			return iNdEx, nil
 		case 2:
 			var length int
 			for shift := uint(0); ; shift += 7 {
@@ -1720,55 +1771,30 @@ func skipAuthz(dAtA []byte) (n int, err error) {
 				return 0, ErrInvalidLengthAuthz
 			}
 			iNdEx += length
-			if iNdEx < 0 {
-				return 0, ErrInvalidLengthAuthz
-			}
-			return iNdEx, nil
 		case 3:
-			for {
-				var innerWire uint64
-				var start int = iNdEx
-				for shift := uint(0); ; shift += 7 {
-					if shift >= 64 {
-						return 0, ErrIntOverflowAuthz
-					}
-					if iNdEx >= l {
-						return 0, io.ErrUnexpectedEOF
-					}
-					b := dAtA[iNdEx]
-					iNdEx++
-					innerWire |= (uint64(b) & 0x7F) << shift
-					if b < 0x80 {
-						break
-					}
-				}
-				innerWireType := int(innerWire & 0x7)
-				if innerWireType == 4 {
-					break
-				}
-				next, err := skipAuthz(dAtA[start:])
-				if err != nil {
-					return 0, err
-				}
-				iNdEx = start + next
-				if iNdEx < 0 {
-					return 0, ErrInvalidLengthAuthz
-				}
-			}
-			return iNdEx, nil
+			depth++
 		case 4:
-			return iNdEx, nil
+			if depth == 0 {
+				return 0, ErrUnexpectedEndOfGroupAuthz
+			}
+			depth--
 		case 5:
 			iNdEx += 4
-			return iNdEx, nil
 		default:
 			return 0, fmt.Errorf("proto: illegal wireType %d", wireType)
 		}
+		if iNdEx < 0 {
+			return 0, ErrInvalidLengthAuthz
+		}
+		if depth == 0 {
+			return iNdEx, nil
+		}
 	}
-	panic("unreachable")
+	return 0, io.ErrUnexpectedEOF
 }
 
 var (
-	ErrInvalidLengthAuthz = fmt.Errorf("proto: negative length found during unmarshaling")
-	ErrIntOverflowAuthz   = fmt.Errorf("proto: integer overflow")
+	ErrInvalidLengthAuthz        = fmt.Errorf("proto: negative length found during unmarshaling")
+	ErrIntOverflowAuthz          = fmt.Errorf("proto: integer overflow")
+	ErrUnexpectedEndOfGroupAuthz = fmt.Errorf("proto: unexpected end of group")
 )
